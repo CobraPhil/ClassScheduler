@@ -37,17 +37,49 @@ A class scheduling system for assigning rooms and class times depending on class
 	- If the class is 8 credits, it will meet twice a week, preferably Tuesday and Thursday.
 	- If the class is 12 credits, it will meet three times a week, preferably Monday, Wednesday, and Friday.
 	- There are 6 regular class periods availabe Monady through Friday that can be used for scheduling classes. Periods 1 - Periods 6.
+		- Period times:
+			- Period 1: 7:00am-7:50am
+			- Period 2: 8:00am-8:50am
+			- Period 3: 9:00am-9:30am (Chapel - Never schedule classes)
+			- Period 4: 9:40am-10:30am
+			- Period 5: 10:40am-11:30am
+			- Period 6: 11:40am-12:30pm
+			- Period 7: 12:40pm-1:30pm (Special period - use only as last resort)
+			- Period 8: 6:00pm-6:50pm (Special period for specific teachers)
 		- Period 3 should always be open. It is for Chapel which each student attends. Never schedule a class for period 3
-		- Periods 7 - Periods 10 are also special periods. They should not be used unless specified in this CLAUDE.md file. Any special requests will be on the next lines.
-			- Any class taught by Kia Kawage or Philip Tama should be scheduled for Period 8 on the days best determined by the other scheduling requirements.
-			- Any class taught by Lori Smith should be scheduled for Period 1 on the days best determined by the other scheduling requirements.
-		- Scheduling Priority Order:
-			1. Try preferred days first (Tue/Thu for 8-credit, Mon/Wed/Fri for 12-credit)
-			2. If preferred days don't work, try alternative day combinations before using Period 7
-			3. For 8-credit classes: try Mon/Wed, Mon/Fri, Wed/Fri as alternatives
-			4. For 12-credit classes: try Mon/Tue/Thu, Tue/Wed/Fri as alternatives
-			5. Period 7 should only be used as an absolute last resort when no other day/period combinations work
-			6. Always exhaust all possibilities in Periods 1-6 (and Period 8 for special teachers) before adding Period 7
+		- Periods 7 - Periods 10 are also special periods. They should not be used unless specified through manual period assignments via the dropdown interface.
+		- Enhanced Scheduling Priority System:
+			
+			A. Overall Priority Hierarchy (most to least constrained):
+				1. Manual period assignments (highest priority)
+				2. Room constraints (Computer Lab, Chapel requirements)
+				3. Class size (largest classes scheduled first)
+				4. Preferred periods (2,4,5,6 before 1,7,8)
+				5. Day combinations and period optimization
+			
+			B. Period Usage Priority:
+				1. Periods 2,4,5,6 should be filled FIRST (core teaching periods)
+				2. Period 1 used only when necessary or manually assigned
+				3. Period 7 used as last resort
+				4. Period 8 used only when manually assigned
+				5. Always fill periods 2,4,5,6 completely before using Period 1 or 7
+			
+			C. Day Combination Strategy:
+				1. Try preferred days first (Tue/Thu for 8-credit, Mon/Wed/Fri for 12-credit)
+				2. If preferred days don't work in periods 2,4,5,6, try alternative day combinations
+				3. For 8-credit classes: try Mon/Wed, Mon/Fri, Wed/Fri as alternatives
+				4. For 12-credit classes: try Mon/Tue/Thu, Tue/Wed/Fri as alternatives
+				5. Use non-preferred days before resorting to Period 1 or Period 7
+			
+			D. Solution Optimization:
+				1. Do not use the first solution found
+				2. Use multiple passes and sophisticated search algorithms
+				3. Find optimal solution that:
+					- Avoids Period 7 entirely if possible
+					- Minimizes Period 1 usage (except required teachers)
+					- Maximizes usage of core periods (2,4,5,6)
+				4. Compare multiple solutions and select the best one
+				5. Teacher-specific period requirements are now handled through manual period assignments in the web interface
 	
  
 

@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Class Schedule</title>
+    <title>GBBC Class Schedule</title>
     <style>
         @page {
             size: A4 landscape;
@@ -65,6 +65,15 @@
             text-align: center;
             width: 80px;
             font-size: 9px;
+            line-height: 1.2;
+        }
+        
+        .period-label small {
+            font-size: 7px;
+            font-weight: normal;
+            color: #666;
+            display: block;
+            margin-top: 2px;
         }
         
         .class-block {
@@ -110,10 +119,6 @@
             background-color: #fff3cd;
         }
         
-        .special-period {
-            background-color: #f8d7da;
-        }
-        
         .footer {
             margin-top: 15px;
             font-size: 8px;
@@ -144,7 +149,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>Weekly Class Schedule</h1>
+        <h1>GBBC Weekly Class Schedule</h1>
         <p>Generated on {{ datetime.now().strftime('%B %d, %Y at %I:%M %p') }}</p>
     </div>
     
@@ -162,10 +167,19 @@
         <tbody>
             {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8] %}
             <tr>
-                <td class="period-label {% if period_num == 3 %}chapel-period{% elif period_num >= 7 %}special-period{% endif %}">
-                    Period {{ period_num }}
-                    {% if period_num == 3 %}<br>(Chapel){% endif %}
-                    {% if period_num >= 7 %}<br>(Special){% endif %}
+                <td class="period-label {% if period_num == 3 %}chapel-period{% endif %}">
+                    Period {{ period_num }}<br>
+                    <small>
+                    {% if period_num == 1 %}7:00am-7:50am
+                    {% elif period_num == 2 %}8:00am-8:50am
+                    {% elif period_num == 3 %}9:00am-9:30am<br>(Chapel)
+                    {% elif period_num == 4 %}9:40am-10:30am
+                    {% elif period_num == 5 %}10:40am-11:30am
+                    {% elif period_num == 6 %}11:40am-12:30pm
+                    {% elif period_num == 7 %}12:40pm-1:30pm
+                    {% elif period_num == 8 %}6:00pm-6:50pm
+                    {% endif %}
+                    </small>
                 </td>
                 {% for day in days %}
                 <td>
@@ -194,16 +208,6 @@
         </tbody>
     </table>
     
-    <div class="room-legend">
-        <h4>Room Assignment Rules:</h4>
-        <ul>
-            <li><strong>Computer Lab:</strong> All computer classes (GECO) and ESL classes (GELA)</li>
-            <li><strong>Chapel:</strong> Classes with over 40 students</li>
-            <li><strong>Regular Classrooms:</strong> Classroom 2, 4, 5, 6 for other classes</li>
-            <li><strong>Period 3:</strong> Reserved for Chapel (no classes scheduled)</li>
-            <li><strong>Periods 7-8:</strong> Special periods used when necessary</li>
-        </ul>
-    </div>
     
     <div class="footer">
         <p>Class Schedule Generator - Conflict-free scheduling with room assignments</p>

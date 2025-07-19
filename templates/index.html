@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Class Schedule Generator</title>
+    <title>GBBC Class Schedule Generator</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -151,14 +151,20 @@
             border-bottom: 1px solid #eee;
             transition: background-color 0.2s;
         }
-        .class-room-selector {
+        .class-room-selector, .class-period-selector {
             margin-left: 15px;
-            padding: 5px 8px;
+            padding: 8px 12px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 14px;
             background-color: white;
-            min-width: 120px;
+            min-width: 150px;
+            font-weight: 600;
+        }
+        
+        .class-period-selector {
+            margin-left: 10px;
+            min-width: 180px;
         }
         .class-item:hover {
             background-color: #f8f9fa;
@@ -214,6 +220,14 @@
             font-weight: bold;
             text-align: center;
             border-right: 1px solid #dee2e6;
+            line-height: 1.2;
+        }
+        .period-label small {
+            font-size: 10px;
+            font-weight: normal;
+            color: #666;
+            display: block;
+            margin-top: 2px;
         }
         .schedule-cell {
             padding: 10px;
@@ -332,7 +346,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Class Schedule Generator</h1>
+            <h1>GBBC Class Schedule Generator</h1>
             <p>Generate conflict-free weekly class schedules with room assignments</p>
         </div>
         
@@ -427,6 +441,7 @@
         let selectedClassNames = new Set();
         let currentSchedule = null;
         let classRoomAssignments = {}; // Track manual room assignments
+        let classPeriodAssignments = {}; // Track manual period assignments
         
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -576,6 +591,16 @@
                         <option value="Classroom 5" ${defaultRoom === 'Classroom 5' ? 'selected' : ''}>Classroom 5</option>
                         <option value="Classroom 6" ${defaultRoom === 'Classroom 6' ? 'selected' : ''}>Classroom 6</option>
                     </select>
+                    <select class="class-period-selector" id="period-${index}" onchange="updateClassPeriod('${cls.name}', this.value)">
+                        <option value="Open" selected>Open</option>
+                        <option value="1">Period 1 (7:00am-7:50am)</option>
+                        <option value="2">Period 2 (8:00am-8:50am)</option>
+                        <option value="4">Period 4 (9:40am-10:30am)</option>
+                        <option value="5">Period 5 (10:40am-11:30am)</option>
+                        <option value="6">Period 6 (11:40am-12:30pm)</option>
+                        <option value="7">Period 7 (12:40pm-1:30pm)</option>
+                        <option value="8">Period 8 (6:00pm-6:50pm)</option>
+                    </select>
                 `;
                 
                 classList.appendChild(item);
@@ -609,6 +634,15 @@
             console.log('Room assignments:', classRoomAssignments);
         }
         
+        function updateClassPeriod(className, periodValue) {
+            if (periodValue === 'Open') {
+                delete classPeriodAssignments[className];
+            } else {
+                classPeriodAssignments[className] = parseInt(periodValue);
+            }
+            console.log('Period assignments:', classPeriodAssignments);
+        }
+        
         function selectAll() {
             document.querySelectorAll('.class-checkbox').forEach(cb => {
                 cb.checked = true;
@@ -640,7 +674,8 @@
                     },
                     body: JSON.stringify({
                         selected_classes: Array.from(selectedClassNames),
-                        room_assignments: classRoomAssignments
+                        room_assignments: classRoomAssignments,
+                        period_assignments: classPeriodAssignments
                     })
                 });
                 
@@ -752,7 +787,21 @@
                 row.className = 'schedule-row';
                 
                 let periodLabel = `Period ${period}`;
-                if (period === 3) periodLabel += ' (Chapel)';
+                let periodTime = '';
+                
+                // Add period times
+                switch(period) {
+                    case 1: periodTime = '7:00am-7:50am'; break;
+                    case 2: periodTime = '8:00am-8:50am'; break;
+                    case 3: periodTime = '9:00am-9:30am (Chapel)'; break;
+                    case 4: periodTime = '9:40am-10:30am'; break;
+                    case 5: periodTime = '10:40am-11:30am'; break;
+                    case 6: periodTime = '11:40am-12:30pm'; break;
+                    case 7: periodTime = '12:40pm-1:30pm'; break;
+                    case 8: periodTime = '6:00pm-6:50pm'; break;
+                }
+                
+                periodLabel = `${periodLabel}<br><small>${periodTime}</small>`;
                 
                 row.innerHTML = `<div class="period-label">${periodLabel}</div>`;
                 
@@ -793,9 +842,68 @@
             }
             
             try {
-                window.location.href = '/export_pdf';
+                showAlert('Generating PDF...', 'info');
+                console.log('Starting PDF export...');
+                
+                const response = await fetch('/export_pdf', {
+                    method: 'GET'
+                });
+                
+                console.log('Response received:', response.status, response.statusText);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                if (response.ok) {
+                    // Check if it's a JSON error response
+                    const contentType = response.headers.get('content-type');
+                    console.log('Content-Type:', contentType);
+                    
+                    if (contentType && contentType.includes('application/json')) {
+                        console.log('Received JSON error response');
+                        const result = await response.json();
+                        console.log('Error result:', result);
+                        showAlert(result.error || 'Export failed', 'error');
+                        return;
+                    }
+                    
+                    // Success - download the file
+                    console.log('Creating blob from response...');
+                    const blob = await response.blob();
+                    console.log('Blob created, size:', blob.size, 'type:', blob.type);
+                    
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    
+                    // Get filename from Content-Disposition header or use default
+                    const disposition = response.headers.get('Content-Disposition');
+                    let filename = 'class_schedule.pdf';
+                    if (disposition && disposition.includes('filename=')) {
+                        filename = disposition.split('filename=')[1].replace(/"/g, '');
+                    }
+                    
+                    console.log('Downloading file:', filename);
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    
+                    showAlert('PDF exported successfully!', 'success');
+                } else {
+                    console.log('Response not OK, status:', response.status);
+                    // Try to get error message from response
+                    try {
+                        const errorResult = await response.json();
+                        console.log('Error response JSON:', errorResult);
+                        showAlert(errorResult.error || 'Export failed', 'error');
+                    } catch (parseError) {
+                        console.log('Failed to parse error response as JSON:', parseError);
+                        showAlert(`Export failed with status: ${response.status}`, 'error');
+                    }
+                }
             } catch (error) {
-                showAlert('Export failed', 'error');
+                console.error('Export error details:', error);
+                showAlert('Export failed: ' + error.message, 'error');
             }
         }
     </script>

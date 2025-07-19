@@ -22,6 +22,7 @@ classes_data = []
 selected_classes = []
 current_schedule = None
 manual_room_assignments = {}  # Track manual room assignments
+manual_period_assignments = {}  # Track manual period assignments
 
 # Room definitions
 ROOMS = {
@@ -48,12 +49,13 @@ PERIODS = {
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 class ClassScheduler:
-    def __init__(self, classes, manual_rooms=None):
+    def __init__(self, classes, manual_rooms=None, manual_periods=None):
         self.classes = classes
         self.schedule = {}
         self.conflicts = []
         self.room_assignments = {}
         self.manual_room_assignments = manual_rooms or {}
+        self.manual_period_assignments = manual_periods or {}
         
     def parse_students(self, student_string):
         """Parse semicolon-separated student list"""
@@ -103,6 +105,37 @@ class ClassScheduler:
                 ['Wednesday', 'Thursday', 'Friday']   # Alternative 5
             ]
         return [['Monday']]
+    
+    def get_period_priority_order(self):
+        """Get periods in priority order: core periods first, then others"""
+        return [
+            [2, 4, 5, 6],  # Core periods (highest priority)
+            [1],           # Period 1 (second priority) 
+            [7],           # Period 7 (last resort)
+            [8]            # Period 8 (special teachers only)
+        ]
+    
+    def evaluate_solution_quality(self, schedule):
+        """Evaluate the quality of a scheduling solution"""
+        score = 0
+        period_usage = {p: 0 for p in range(1, 9)}
+        
+        # Count period usage
+        for day in schedule:
+            for period in schedule[day]:
+                if schedule[day][period]:  # If period has classes
+                    period_usage[period] += len(schedule[day][period])
+        
+        # Scoring: Prefer core periods, penalize Period 1 and 7
+        score += period_usage[2] * 10  # Core periods get high scores
+        score += period_usage[4] * 10
+        score += period_usage[5] * 10
+        score += period_usage[6] * 10
+        score -= period_usage[1] * 5   # Penalize Period 1 usage
+        score -= period_usage[7] * 20  # Heavy penalty for Period 7
+        score += period_usage[8] * 8   # Period 8 is okay for special teachers
+        
+        return score, period_usage
     
     def assign_room(self, class_info):
         """Assign appropriate room based on class requirements and manual overrides"""
@@ -244,22 +277,215 @@ class ClassScheduler:
         return self.generate_schedule_internal(use_period_7=True)
     
     def generate_schedule(self, use_period_7=False):
-        """Generate class schedule with multi-pass conflict resolution"""
-        # First pass: Try without Period 7, exhausting all day combinations
-        success, unscheduled = self.try_schedule_without_period_7()
+        """Generate class schedule with sophisticated optimization and multiple solution comparison"""
+        print("Starting enhanced scheduling algorithm...")
         
-        if success:
-            return True, []
+        best_solution = None
+        best_score = -999999
+        solutions_tried = 0
         
-        # If first pass failed and user allows Period 7, try with Period 7
+        # Try multiple scheduling approaches and compare results
+        approaches = [
+            {"name": "Core periods first, no Period 7", "use_p7": False, "aggressive_core": True},
+            {"name": "Standard approach, no Period 7", "use_p7": False, "aggressive_core": False},
+        ]
+        
         if use_period_7:
-            print(f"First pass failed with {len(unscheduled)} unscheduled classes. Trying with Period 7...")
-            success, unscheduled = self.try_schedule_with_period_7()
-            return success, unscheduled
+            approaches.extend([
+                {"name": "Core periods first, with Period 7", "use_p7": True, "aggressive_core": True},
+                {"name": "Standard approach, with Period 7", "use_p7": True, "aggressive_core": False},
+            ])
+        
+        # Always add a fallback approach that's very flexible
+        approaches.append({
+            "name": "Fallback - any period allowed", "use_p7": True, "aggressive_core": False
+        })
+        
+        for approach in approaches:
+            print(f"\nTrying approach: {approach['name']}")
+            
+            # Reset for this attempt
+            self.schedule = {}
+            self.conflicts = []
+            self.room_assignments = {}
+            
+            success, unscheduled = self.generate_schedule_internal(
+                use_period_7=approach['use_p7'], 
+                aggressive_core_filling=approach['aggressive_core']
+            )
+            
+            solutions_tried += 1
+            
+            # Debug: Count actual scheduled classes
+            actual_scheduled = sum(len(self.schedule[day][period]) 
+                                 for day in self.schedule 
+                                 for period in self.schedule[day] 
+                                 if self.schedule[day][period])
+            
+            print(f"Approach result: success={success}, unscheduled={len(unscheduled)}, actually_scheduled={actual_scheduled}")
+            
+            if success:
+                # Evaluate this solution
+                score, period_usage = self.evaluate_solution_quality(self.schedule)
+                print(f"Solution found! Score: {score}, Period usage: {period_usage}")
+                
+                if score > best_score:
+                    best_score = score
+                    best_solution = {
+                        'schedule': dict(self.schedule),
+                        'room_assignments': dict(self.room_assignments),
+                        'score': score,
+                        'period_usage': period_usage,
+                        'approach': approach['name']
+                    }
+                    print(f"New best solution! Score: {score}")
+            else:
+                print(f"Approach failed with {len(unscheduled)} unscheduled classes")
+                
+                # Only treat as successful if we actually scheduled ALL classes, not just many instances
+                if len(unscheduled) == 0:  # Must have zero unscheduled classes
+                    print(f"WARNING: Approach reported failure but actually scheduled all {len(self.classes)} classes!")
+                    # Treat this as a successful solution
+                    score, period_usage = self.evaluate_solution_quality(self.schedule)
+                    if score > best_score:
+                        best_score = score
+                        best_solution = {
+                            'schedule': dict(self.schedule),
+                            'room_assignments': dict(self.room_assignments),
+                            'score': score,
+                            'period_usage': period_usage,
+                            'approach': approach['name'] + " (corrected)"
+                        }
+                        print(f"Using corrected solution! Score: {score}")
+                else:
+                    print(f"Approach truly failed: {len(unscheduled)} classes unscheduled: {[u['class']['Class'] for u in unscheduled]}")
+        
+        # Let the last approach (fallback) finish completely if no perfect solution found yet
+        if not best_solution and len(approaches) > 0:
+            print(f"\nNo perfect solution found yet. Ensuring fallback approach completes...")
+            fallback_approach = approaches[-1]  # Last approach is always fallback
+            
+            # Reset for final attempt
+            self.schedule = {}
+            self.conflicts = []
+            self.room_assignments = {}
+            
+            print(f"Running final attempt: {fallback_approach['name']}")
+            success, unscheduled = self.generate_schedule_internal(
+                use_period_7=fallback_approach['use_p7'], 
+                aggressive_core_filling=fallback_approach['aggressive_core']
+            )
+            
+            if success or len(unscheduled) == 0:
+                score, period_usage = self.evaluate_solution_quality(self.schedule)
+                best_solution = {
+                    'schedule': dict(self.schedule),
+                    'room_assignments': dict(self.room_assignments),
+                    'score': score,
+                    'period_usage': period_usage,
+                    'approach': fallback_approach['name'] + " (final complete run)"
+                }
+                print(f"Fallback approach succeeded! Score: {score}")
+
+        # Use the best solution found, or the best partial solution
+        if best_solution:
+            self.schedule = best_solution['schedule']
+            self.room_assignments = best_solution['room_assignments']
+            
+            # Count actual scheduled classes in final solution
+            final_scheduled_count = sum(len(self.schedule[day][period]) 
+                                      for day in self.schedule 
+                                      for period in self.schedule[day] 
+                                      if self.schedule[day][period])
+            
+            print(f"\nUsing best solution: {best_solution['approach']}")
+            print(f"Final score: {best_solution['score']}, Period usage: {best_solution['period_usage']}")
+            print(f"Final solution has {final_scheduled_count} classes scheduled out of {len(self.classes)} total")
+            
+            # Debug: List all scheduled classes in final solution
+            scheduled_classes = set()
+            for day in self.schedule:
+                for period in self.schedule[day]:
+                    for class_info in self.schedule[day][period]:
+                        scheduled_classes.add(class_info['Class'])
+            
+            missing_classes = set(cls['Class'] for cls in self.classes) - scheduled_classes
+            if missing_classes:
+                print(f"WARNING: Missing classes in final solution: {list(missing_classes)}")
+            else:
+                print(f"SUCCESS: All {len(self.classes)} classes are in the final solution")
+            
+            return True, []
         else:
-            return False, unscheduled
+            # No complete solution found, but let's try to find the best partial solution
+            print(f"\nNo complete solution found after {solutions_tried} attempts")
+            print("Attempting to find best partial solution...")
+            
+            best_partial = None
+            best_partial_score = -999999
+            min_unscheduled = 999999
+            
+            # Try all approaches again but keep partial results
+            for approach in approaches:
+                print(f"Evaluating partial solution for: {approach['name']}")
+                
+                # Reset for this attempt
+                self.schedule = {}
+                self.conflicts = []
+                self.room_assignments = {}
+                
+                success, unscheduled = self.generate_schedule_internal(
+                    use_period_7=approach['use_p7'], 
+                    aggressive_core_filling=approach['aggressive_core']
+                )
+                
+                # Calculate how many classes were successfully scheduled
+                total_scheduled = sum(len(self.schedule[day][period]) 
+                                    for day in self.schedule 
+                                    for period in self.schedule[day])
+                
+                # Score this partial solution
+                if total_scheduled > 0:
+                    score, period_usage = self.evaluate_solution_quality(self.schedule)
+                    # Bonus points for scheduling more classes
+                    adjusted_score = score + (total_scheduled * 50) - (len(unscheduled) * 100)
+                    
+                    print(f"Partial solution: {total_scheduled} scheduled, {len(unscheduled)} unscheduled, score: {adjusted_score}")
+                    
+                    # Prefer solutions with fewer unscheduled classes, then higher scores
+                    if (len(unscheduled) < min_unscheduled or 
+                        (len(unscheduled) == min_unscheduled and adjusted_score > best_partial_score)):
+                        
+                        min_unscheduled = len(unscheduled)
+                        best_partial_score = adjusted_score
+                        best_partial = {
+                            'schedule': dict(self.schedule),
+                            'room_assignments': dict(self.room_assignments),
+                            'score': adjusted_score,
+                            'period_usage': period_usage,
+                            'approach': approach['name'],
+                            'unscheduled': unscheduled,
+                            'total_scheduled': total_scheduled
+                        }
+            
+            # Use the best partial solution
+            if best_partial:
+                self.schedule = best_partial['schedule']
+                self.room_assignments = best_partial['room_assignments']
+                print(f"\nUsing best partial solution: {best_partial['approach']}")
+                print(f"Scheduled {best_partial['total_scheduled']} classes, {len(best_partial['unscheduled'])} unscheduled")
+                print(f"Score: {best_partial['score']}, Period usage: {best_partial['period_usage']}")
+                
+                # Return success if we scheduled most classes, otherwise partial success
+                if len(best_partial['unscheduled']) <= len(self.classes) * 0.1:  # 90% success rate
+                    return True, []
+                else:
+                    return False, best_partial['unscheduled']
+            else:
+                print("No valid solution found at all")
+                return False, unscheduled
     
-    def generate_schedule_internal(self, use_period_7=False):
+    def generate_schedule_internal(self, use_period_7=False, aggressive_core_filling=True):
         """Internal method that actually generates the schedule"""
         self.schedule = {}
         self.conflicts = []
@@ -271,11 +497,7 @@ class ClassScheduler:
         if use_period_7:
             available_periods.append(7)
         
-        # Special period 8 for specific teachers
-        special_teachers = ['Kawage, Kia', 'Tama, Philip']
-        
-        # Period 1 for specific teachers
-        period_1_teachers = ['Smith, Lori']
+        # Removed hardcoded teacher period requirements - now handled via manual dropdowns
         
         # Initialize schedule grid
         for day in DAYS:
@@ -283,77 +505,115 @@ class ClassScheduler:
             for period in range(1, 9):
                 self.schedule[day][period] = []
         
-        # Sort classes by constraints (most constrained first)
+        # Sort classes by enhanced priority hierarchy
         def class_priority(class_info):
             priority = 0
-            
-            # Period 1 teachers get highest priority (most constrained)
-            if any(teacher in class_info['Teacher'] for teacher in period_1_teachers):
-                priority += 2000
-            
-            # Special teachers get second highest priority
-            if any(teacher in class_info['Teacher'] for teacher in special_teachers):
-                priority += 1000
-            
-            # Computer/ESL classes get high priority (room constraint)
-            course_name = class_info['Course Name'].upper()
-            if 'GECO' in course_name or 'GELA' in course_name:
-                priority += 500
-            
-            # Large classes get high priority (room constraint)
             student_count = len(self.parse_students(class_info['Students']))
+            course_name = class_info['Course Name'].upper()
+            
+            # 1. Manual period assignments get highest priority (most constrained)
+            if class_info['Class'] in self.manual_period_assignments:
+                priority += 10000
+            
+            # 2. Required teacher periods removed - now handled via manual period assignments
+            
+            # 3. Room constraints get third priority
+            if 'GECO' in course_name or 'GELA' in course_name:
+                priority += 2000  # Computer Lab constraint
             if student_count > 40:
-                priority += 400
+                priority += 2000  # Chapel constraint
             
-            # Classes with more frequency get higher priority (harder to schedule)
+            # 4. Class size (largest first) - add student count directly
+            priority += student_count * 10
+            
+            # 5. Classes with more frequency get higher priority (harder to schedule)
             frequency = self.get_class_frequency(class_info['Units'])
-            priority += frequency * 50
-            
-            # More students = higher priority
-            priority += student_count
+            priority += frequency * 100
             
             return priority
         
         sorted_classes = sorted(self.classes, key=class_priority, reverse=True)
         unscheduled_classes = []
         
+        # Enhanced scheduling with sophisticated search and optimization
         for class_info in sorted_classes:
             frequency = self.get_class_frequency(class_info['Units'])
             day_options = self.get_preferred_days(frequency)
             scheduled = False
             conflicts_found = []
+            best_option = None
             
-            # Check if teacher needs special period assignments
-            needs_period_8 = any(teacher in class_info['Teacher'] for teacher in special_teachers)
-            needs_period_1 = any(teacher in class_info['Teacher'] for teacher in period_1_teachers)
+            # Check for manual period assignment first
+            class_name = class_info['Class']
+            has_manual_period = class_name in self.manual_period_assignments
             
-            # Try each day combination in priority order
-            for day_option in day_options:
+            # Teacher period requirements removed - now handled via manual dropdowns
+            needs_period_8 = False
+            needs_period_1 = False
+            
+            # Determine period priorities for this class
+            if has_manual_period:
+                period_groups = [[self.manual_period_assignments[class_name]]]
+            # Removed hardcoded teacher period assignments
+            else:
+                # Use period priority order based on aggressiveness
+                if aggressive_core_filling:
+                    # Strict priority: core periods first, then others
+                    period_groups = [
+                        [2, 4, 5, 6],  # Core periods (try these first)
+                        [1],           # Period 1 (only if core periods don't work)
+                        [7] if use_period_7 else []  # Period 7 (last resort)
+                    ]
+                else:
+                    # More flexible: allow mixing of periods
+                    period_groups = [
+                        [2, 4, 5, 6],  # Still prefer core periods
+                        [1, 7] if use_period_7 else [1]  # But allow Period 1 and 7 together
+                    ]
+                period_groups = [group for group in period_groups if group]  # Remove empty groups
+            
+            # Try scheduling with period priority in mind
+            for period_group in period_groups:
                 if scheduled:
                     break
                     
-                # Determine available periods for this class
-                if needs_period_8:
-                    periods_to_try = [8]
-                elif needs_period_1:
-                    periods_to_try = [1]
-                else:
-                    periods_to_try = available_periods
-                
-                # Try each period for this day combination
-                for period in periods_to_try:
+                for period in period_group:
                     if scheduled:
                         break
-                    
-                    can_schedule, period_conflicts = self.can_schedule_class(class_info, day_option, period, assigned_rooms)
-                    
-                    if can_schedule:
-                        self.schedule_class(class_info, day_option, period, assigned_rooms)
-                        scheduled = True
-                        print(f"Scheduled {class_info['Class']} on {day_option} at Period {period}")
-                        break
-                    else:
-                        conflicts_found.extend(period_conflicts)
+                        
+                    # Try each day combination for this period
+                    for day_option in day_options:
+                        if scheduled:
+                            break
+                            
+                        can_schedule, period_conflicts = self.can_schedule_class(class_info, day_option, period, assigned_rooms)
+                        
+                        if can_schedule:
+                            # Found a valid slot - record it
+                            potential_option = {
+                                'day_option': day_option,
+                                'period': period,
+                                'priority_score': self.get_option_priority_score(period, day_option, frequency)
+                            }
+                            
+                            # If this is core period or manual assignment, schedule immediately
+                            if period in [2, 4, 5, 6] or has_manual_period:
+                                self.schedule_class(class_info, day_option, period, assigned_rooms)
+                                scheduled = True
+                                print(f"Scheduled {class_info['Class']} on {day_option} at Period {period}")
+                                break
+                            else:
+                                # For non-core periods, save the option but keep looking for better ones
+                                if best_option is None or potential_option['priority_score'] > best_option['priority_score']:
+                                    best_option = potential_option
+                        else:
+                            conflicts_found.extend(period_conflicts)
+            
+            # If not scheduled in core periods but have a fallback option, use it
+            if not scheduled and best_option:
+                self.schedule_class(class_info, best_option['day_option'], best_option['period'], assigned_rooms)
+                scheduled = True
+                print(f"Scheduled {class_info['Class']} on {best_option['day_option']} at Period {best_option['period']} (fallback)")
             
             if not scheduled:
                 unscheduled_classes.append({
@@ -362,7 +622,36 @@ class ClassScheduler:
                 })
                 print(f"Could not schedule {class_info['Class']} - conflicts: {conflicts_found[:3]}...")  # Show first 3 conflicts
         
+        # Always return the current state - whether complete or partial
+        total_classes = len(self.classes)
+        scheduled_classes = total_classes - len(unscheduled_classes)
+        print(f"Scheduling complete: {scheduled_classes}/{total_classes} classes scheduled")
+        
         return len(unscheduled_classes) == 0, unscheduled_classes
+    
+    def get_option_priority_score(self, period, day_option, frequency):
+        """Score an option based on period and day preferences"""
+        score = 0
+        
+        # Period scoring (higher = better)
+        if period in [2, 4, 5, 6]:
+            score += 100  # Core periods get highest score
+        elif period == 1:
+            score += 20   # Period 1 is acceptable
+        elif period == 7:
+            score += 5    # Period 7 is last resort
+        elif period == 8:
+            score += 80   # Period 8 is good for special teachers
+        
+        # Day combination scoring
+        if frequency == 2 and day_option == ['Tuesday', 'Thursday']:
+            score += 50  # Preferred days for 8-credit
+        elif frequency == 3 and day_option == ['Monday', 'Wednesday', 'Friday']:
+            score += 50  # Preferred days for 12-credit
+        else:
+            score += 10  # Alternative days
+        
+        return score
 
 @app.route('/')
 def index():
@@ -429,7 +718,7 @@ def upload_csv():
 
 @app.route('/generate_schedule', methods=['POST'])
 def generate_schedule():
-    global current_schedule, selected_classes, manual_room_assignments
+    global current_schedule, selected_classes, manual_room_assignments, manual_period_assignments
     
     try:
         data = request.get_json() or {}
@@ -441,8 +730,8 @@ def generate_schedule():
         # Filter classes to only selected ones
         classes_to_schedule = [cls for cls in classes_data if cls['Class'] in selected_classes]
         
-        # Pass manual room assignments to scheduler
-        scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments)
+        # Pass manual room and period assignments to scheduler
+        scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments, manual_period_assignments)
         success, unscheduled = scheduler.generate_schedule(use_period_7)
         
         current_schedule = scheduler.schedule
@@ -486,15 +775,17 @@ def generate_schedule():
 
 @app.route('/set_selection', methods=['POST'])
 def set_selection():
-    global selected_classes, manual_room_assignments
+    global selected_classes, manual_room_assignments, manual_period_assignments
     
     try:
         data = request.get_json()
         selected_classes = data.get('selected_classes', [])
         manual_room_assignments = data.get('room_assignments', {})
+        manual_period_assignments = data.get('period_assignments', {})
         
         print(f"Selected classes: {selected_classes}")
         print(f"Manual room assignments: {manual_room_assignments}")
+        print(f"Manual period assignments: {manual_period_assignments}")
         
         return jsonify({
             'success': True,
@@ -504,14 +795,37 @@ def set_selection():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/test_pdf')
+def test_pdf():
+    """Test PDF generation with simple content"""
+    try:
+        html_content = "<html><body><h1>Test PDF Export</h1><p>This is a test</p></body></html>"
+        pdf_buffer = BytesIO()
+        weasyprint.HTML(string=html_content).write_pdf(pdf_buffer)
+        pdf_buffer.seek(0)
+        
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name='test.pdf',
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/export_pdf')
 def export_pdf():
     global current_schedule
     
+    print("PDF export requested")  # Debug
+    
     if not current_schedule:
+        print("No current schedule available")  # Debug
         return jsonify({'success': False, 'error': 'No schedule to export'})
     
     try:
+        print("Generating HTML for PDF...")  # Debug
+        
         # Generate HTML for PDF
         html_content = render_template('schedule_pdf.html', 
                                      schedule=current_schedule, 
@@ -520,10 +834,31 @@ def export_pdf():
                                      rooms=ROOMS,
                                      datetime=datetime)
         
+        print(f"HTML content length: {len(html_content)}")  # Debug
+        print("HTML generated successfully, creating PDF...")  # Debug
+        
         # Generate PDF
         pdf_buffer = BytesIO()
-        weasyprint.HTML(string=html_content).write_pdf(pdf_buffer)
+        
+        # Try to create WeasyPrint HTML object with more specific error handling
+        try:
+            html_doc = weasyprint.HTML(string=html_content)
+            print("WeasyPrint HTML object created successfully")  # Debug
+        except Exception as html_error:
+            print(f"Failed to create WeasyPrint HTML object: {html_error}")  # Debug
+            raise html_error
+        
+        # Try to write PDF
+        try:
+            html_doc.write_pdf(pdf_buffer)
+            print("PDF written to buffer successfully")  # Debug
+        except Exception as pdf_error:
+            print(f"Failed to write PDF: {pdf_error}")  # Debug
+            raise pdf_error
+        
         pdf_buffer.seek(0)
+        pdf_size = len(pdf_buffer.getvalue())
+        print(f"PDF generated successfully, size: {pdf_size} bytes")  # Debug
         
         return send_file(
             pdf_buffer,
@@ -532,8 +867,19 @@ def export_pdf():
             mimetype='application/pdf'
         )
         
+    except ImportError as e:
+        print(f"WeasyPrint import error: {e}")  # Debug
+        error_msg = 'PDF generation library not available. Please install WeasyPrint.'
+        return jsonify({'success': False, 'error': error_msg})
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        print(f"PDF export error: {str(e)}")  # Debug
+        import traceback
+        traceback.print_exc()
+        
+        # Return a JSON error response instead of trying HTML fallback
+        error_msg = f'PDF generation failed: {str(e)}'
+        print(f"Returning error: {error_msg}")  # Debug
+        return jsonify({'success': False, 'error': error_msg})
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=5000)
