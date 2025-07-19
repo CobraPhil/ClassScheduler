@@ -21,6 +21,7 @@ def after_request(response):
 classes_data = []
 selected_classes = []
 current_schedule = None
+manual_room_assignments = {}  # Track manual room assignments
 
 # Room definitions
 ROOMS = {
@@ -47,11 +48,12 @@ PERIODS = {
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
 class ClassScheduler:
-    def __init__(self, classes):
+    def __init__(self, classes, manual_rooms=None):
         self.classes = classes
         self.schedule = {}
         self.conflicts = []
         self.room_assignments = {}
+        self.manual_room_assignments = manual_rooms or {}
         
     def parse_students(self, student_string):
         """Parse semicolon-separated student list"""
@@ -75,17 +77,48 @@ class ClassScheduler:
             return 1
     
     def get_preferred_days(self, frequency):
-        """Get preferred days based on frequency"""
+        """Get preferred and alternative days based on frequency"""
         if frequency == 1:
             return [['Monday'], ['Tuesday'], ['Wednesday'], ['Thursday'], ['Friday']]
         elif frequency == 2:
-            return [['Tuesday', 'Thursday'], ['Monday', 'Wednesday'], ['Monday', 'Friday'], ['Wednesday', 'Friday']]
+            # Priority order: preferred first, then alternatives
+            return [
+                ['Tuesday', 'Thursday'],      # Preferred
+                ['Monday', 'Wednesday'],      # Alternative 1
+                ['Monday', 'Friday'],         # Alternative 2  
+                ['Wednesday', 'Friday'],      # Alternative 3
+                ['Monday', 'Tuesday'],        # Alternative 4
+                ['Tuesday', 'Wednesday'],     # Alternative 5
+                ['Wednesday', 'Thursday'],    # Alternative 6
+                ['Thursday', 'Friday']        # Alternative 7
+            ]
         elif frequency == 3:
-            return [['Monday', 'Wednesday', 'Friday'], ['Monday', 'Tuesday', 'Thursday'], ['Tuesday', 'Wednesday', 'Friday']]
+            # Priority order: preferred first, then alternatives
+            return [
+                ['Monday', 'Wednesday', 'Friday'],  # Preferred
+                ['Monday', 'Tuesday', 'Thursday'],  # Alternative 1
+                ['Tuesday', 'Wednesday', 'Friday'], # Alternative 2
+                ['Monday', 'Tuesday', 'Wednesday'], # Alternative 3
+                ['Tuesday', 'Wednesday', 'Thursday'], # Alternative 4
+                ['Wednesday', 'Thursday', 'Friday']   # Alternative 5
+            ]
         return [['Monday']]
     
     def assign_room(self, class_info):
-        """Assign appropriate room based on class requirements"""
+        """Assign appropriate room based on class requirements and manual overrides"""
+        class_name = class_info['Class']
+        
+        # Check for manual room assignment first
+        if class_name in self.manual_room_assignments:
+            manual_room = self.manual_room_assignments[class_name]
+            if manual_room == 'Computer Lab':
+                return 'computer_lab'
+            elif manual_room == 'Chapel':
+                return 'chapel'
+            elif manual_room in ['Classroom 2', 'Classroom 4', 'Classroom 5', 'Classroom 6']:
+                return manual_room.lower().replace(' ', '_')
+        
+        # Default automatic assignment logic
         course_name = class_info['Course Name'].upper()
         student_count = len(self.parse_students(class_info['Students']))
         
@@ -159,7 +192,12 @@ class ClassScheduler:
                 room_key = f"{day}_{period}_chapel"
                 if room_key in assigned_rooms:
                     conflicts_found.append(f"Chapel unavailable")
-            else:  # regular classroom
+            elif assigned_room_type in ['classroom_2', 'classroom_4', 'classroom_5', 'classroom_6']:
+                # Specific classroom assignment
+                room_key = f"{day}_{period}_{assigned_room_type}"
+                if room_key in assigned_rooms:
+                    conflicts_found.append(f"{assigned_room_type.replace('_', ' ').title()} unavailable")
+            else:  # regular classroom (any available)
                 available_room = self.get_available_regular_classroom(day, period, assigned_rooms)
                 if not available_room:
                     conflicts_found.append(f"No regular classroom available")
@@ -183,7 +221,13 @@ class ClassScheduler:
                 room_key = f"{day}_{period}_chapel"
                 assigned_rooms[room_key] = class_info['Class']
                 self.room_assignments[f"{day}_{period}_{class_info['Class']}"] = 'Chapel'
-            else:  # regular classroom
+            elif assigned_room_type in ['classroom_2', 'classroom_4', 'classroom_5', 'classroom_6']:
+                # Specific classroom assignment
+                room_key = f"{day}_{period}_{assigned_room_type}"
+                assigned_rooms[room_key] = class_info['Class']
+                room_display = assigned_room_type.replace('_', ' ').title()
+                self.room_assignments[f"{day}_{period}_{class_info['Class']}"] = room_display
+            else:  # regular classroom (any available)
                 available_room = self.get_available_regular_classroom(day, period, assigned_rooms)
                 if available_room:
                     room_key = f"{day}_{period}_{available_room}"
@@ -191,8 +235,32 @@ class ClassScheduler:
                     room_display = available_room.replace('_', ' ').title()
                     self.room_assignments[f"{day}_{period}_{class_info['Class']}"] = room_display
     
+    def try_schedule_without_period_7(self):
+        """Try to schedule all classes without using Period 7"""
+        return self.generate_schedule_internal(use_period_7=False)
+    
+    def try_schedule_with_period_7(self):
+        """Try to schedule all classes including Period 7 as last resort"""
+        return self.generate_schedule_internal(use_period_7=True)
+    
     def generate_schedule(self, use_period_7=False):
-        """Generate class schedule with conflict resolution"""
+        """Generate class schedule with multi-pass conflict resolution"""
+        # First pass: Try without Period 7, exhausting all day combinations
+        success, unscheduled = self.try_schedule_without_period_7()
+        
+        if success:
+            return True, []
+        
+        # If first pass failed and user allows Period 7, try with Period 7
+        if use_period_7:
+            print(f"First pass failed with {len(unscheduled)} unscheduled classes. Trying with Period 7...")
+            success, unscheduled = self.try_schedule_with_period_7()
+            return success, unscheduled
+        else:
+            return False, unscheduled
+    
+    def generate_schedule_internal(self, use_period_7=False):
+        """Internal method that actually generates the schedule"""
         self.schedule = {}
         self.conflicts = []
         self.room_assignments = {}
@@ -216,14 +284,14 @@ class ClassScheduler:
                 self.schedule[day][period] = []
         
         # Sort classes by constraints (most constrained first)
-        # 1. Special teachers first (they need period 8)
-        # 2. Computer/ESL classes (limited to one room)
-        # 3. Large classes (limited to chapel)
-        # 4. Classes with more students
         def class_priority(class_info):
             priority = 0
             
-            # Special teachers get highest priority
+            # Period 1 teachers get highest priority (most constrained)
+            if any(teacher in class_info['Teacher'] for teacher in period_1_teachers):
+                priority += 2000
+            
+            # Special teachers get second highest priority
             if any(teacher in class_info['Teacher'] for teacher in special_teachers):
                 priority += 1000
             
@@ -237,6 +305,10 @@ class ClassScheduler:
             if student_count > 40:
                 priority += 400
             
+            # Classes with more frequency get higher priority (harder to schedule)
+            frequency = self.get_class_frequency(class_info['Units'])
+            priority += frequency * 50
+            
             # More students = higher priority
             priority += student_count
             
@@ -247,41 +319,48 @@ class ClassScheduler:
         
         for class_info in sorted_classes:
             frequency = self.get_class_frequency(class_info['Units'])
-            preferred_days_options = self.get_preferred_days(frequency)
+            day_options = self.get_preferred_days(frequency)
             scheduled = False
+            conflicts_found = []
             
             # Check if teacher needs special period assignments
             needs_period_8 = any(teacher in class_info['Teacher'] for teacher in special_teachers)
             needs_period_1 = any(teacher in class_info['Teacher'] for teacher in period_1_teachers)
             
-            for day_option in preferred_days_options:
+            # Try each day combination in priority order
+            for day_option in day_options:
                 if scheduled:
                     break
                     
-                # Find available periods for this day combination
+                # Determine available periods for this class
                 if needs_period_8:
-                    periods_to_use = [8]
+                    periods_to_try = [8]
                 elif needs_period_1:
-                    periods_to_use = [1]
+                    periods_to_try = [1]
                 else:
-                    periods_to_use = available_periods
+                    periods_to_try = available_periods
                 
-                for period in periods_to_use:
+                # Try each period for this day combination
+                for period in periods_to_try:
                     if scheduled:
                         break
                     
-                    can_schedule, conflicts_found = self.can_schedule_class(class_info, day_option, period, assigned_rooms)
+                    can_schedule, period_conflicts = self.can_schedule_class(class_info, day_option, period, assigned_rooms)
                     
                     if can_schedule:
                         self.schedule_class(class_info, day_option, period, assigned_rooms)
                         scheduled = True
+                        print(f"Scheduled {class_info['Class']} on {day_option} at Period {period}")
                         break
+                    else:
+                        conflicts_found.extend(period_conflicts)
             
             if not scheduled:
                 unscheduled_classes.append({
                     'class': class_info,
-                    'conflicts': conflicts_found if 'conflicts_found' in locals() else ['Could not find suitable time slot']
+                    'conflicts': conflicts_found
                 })
+                print(f"Could not schedule {class_info['Class']} - conflicts: {conflicts_found[:3]}...")  # Show first 3 conflicts
         
         return len(unscheduled_classes) == 0, unscheduled_classes
 
@@ -350,7 +429,7 @@ def upload_csv():
 
 @app.route('/generate_schedule', methods=['POST'])
 def generate_schedule():
-    global current_schedule, selected_classes
+    global current_schedule, selected_classes, manual_room_assignments
     
     try:
         data = request.get_json() or {}
@@ -362,7 +441,8 @@ def generate_schedule():
         # Filter classes to only selected ones
         classes_to_schedule = [cls for cls in classes_data if cls['Class'] in selected_classes]
         
-        scheduler = ClassScheduler(classes_to_schedule)
+        # Pass manual room assignments to scheduler
+        scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments)
         success, unscheduled = scheduler.generate_schedule(use_period_7)
         
         current_schedule = scheduler.schedule
@@ -406,11 +486,15 @@ def generate_schedule():
 
 @app.route('/set_selection', methods=['POST'])
 def set_selection():
-    global selected_classes
+    global selected_classes, manual_room_assignments
     
     try:
         data = request.get_json()
         selected_classes = data.get('selected_classes', [])
+        manual_room_assignments = data.get('room_assignments', {})
+        
+        print(f"Selected classes: {selected_classes}")
+        print(f"Manual room assignments: {manual_room_assignments}")
         
         return jsonify({
             'success': True,

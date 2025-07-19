@@ -41,6 +41,13 @@ A class scheduling system for assigning rooms and class times depending on class
 		- Periods 7 - Periods 10 are also special periods. They should not be used unless specified in this CLAUDE.md file. Any special requests will be on the next lines.
 			- Any class taught by Kia Kawage or Philip Tama should be scheduled for Period 8 on the days best determined by the other scheduling requirements.
 			- Any class taught by Lori Smith should be scheduled for Period 1 on the days best determined by the other scheduling requirements.
+		- Scheduling Priority Order:
+			1. Try preferred days first (Tue/Thu for 8-credit, Mon/Wed/Fri for 12-credit)
+			2. If preferred days don't work, try alternative day combinations before using Period 7
+			3. For 8-credit classes: try Mon/Wed, Mon/Fri, Wed/Fri as alternatives
+			4. For 12-credit classes: try Mon/Tue/Thu, Tue/Wed/Fri as alternatives
+			5. Period 7 should only be used as an absolute last resort when no other day/period combinations work
+			6. Always exhaust all possibilities in Periods 1-6 (and Period 8 for special teachers) before adding Period 7
 	
  
 

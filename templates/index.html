@@ -151,6 +151,15 @@
             border-bottom: 1px solid #eee;
             transition: background-color 0.2s;
         }
+        .class-room-selector {
+            margin-left: 15px;
+            padding: 5px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            background-color: white;
+            min-width: 120px;
+        }
         .class-item:hover {
             background-color: #f8f9fa;
         }
@@ -237,9 +246,9 @@
             margin-top: 2px;
         }
         .class-students {
-            opacity: 0.7;
+            opacity: 0.9;
             font-size: 9px;
-            color: #888;
+            color: white;
             margin-top: 1px;
         }
         .alert {
@@ -417,6 +426,7 @@
         let currentClasses = [];
         let selectedClassNames = new Set();
         let currentSchedule = null;
+        let classRoomAssignments = {}; // Track manual room assignments
         
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -539,6 +549,17 @@
                 const item = document.createElement('div');
                 item.className = 'class-item';
                 
+                // Determine default room assignment
+                const courseName = cls.name.toUpperCase();
+                let defaultRoom = 'Open';
+                
+                // Computer classes (GECO) and ESL classes (GELA) default to Computer Lab
+                if (courseName.includes('GECO') || courseName.includes('GELA')) {
+                    defaultRoom = 'Computer Lab';
+                    // Set this in our room assignments tracking
+                    classRoomAssignments[cls.name] = 'Computer Lab';
+                }
+                
                 item.innerHTML = `
                     <input type="checkbox" class="class-checkbox" 
                            onchange="toggleClass('${cls.name}', this.checked)">
@@ -546,6 +567,15 @@
                         <div class="class-name">${cls.name}</div>
                         <div class="class-details">${cls.teacher} • ${cls.student_count} students • ${cls.units} units</div>
                     </div>
+                    <select class="class-room-selector" id="room-${index}" onchange="updateClassRoom('${cls.name}', this.value)">
+                        <option value="Open" ${defaultRoom === 'Open' ? 'selected' : ''}>Open</option>
+                        <option value="Computer Lab" ${defaultRoom === 'Computer Lab' ? 'selected' : ''}>Computer Lab</option>
+                        <option value="Chapel" ${defaultRoom === 'Chapel' ? 'selected' : ''}>Chapel</option>
+                        <option value="Classroom 2" ${defaultRoom === 'Classroom 2' ? 'selected' : ''}>Classroom 2</option>
+                        <option value="Classroom 4" ${defaultRoom === 'Classroom 4' ? 'selected' : ''}>Classroom 4</option>
+                        <option value="Classroom 5" ${defaultRoom === 'Classroom 5' ? 'selected' : ''}>Classroom 5</option>
+                        <option value="Classroom 6" ${defaultRoom === 'Classroom 6' ? 'selected' : ''}>Classroom 6</option>
+                    </select>
                 `;
                 
                 classList.appendChild(item);
@@ -568,6 +598,15 @@
         function updateClassStats() {
             document.getElementById('totalClasses').textContent = currentClasses.length;
             document.getElementById('selectedClasses').textContent = selectedClassNames.size;
+        }
+        
+        function updateClassRoom(className, roomValue) {
+            if (roomValue === 'Open') {
+                delete classRoomAssignments[className];
+            } else {
+                classRoomAssignments[className] = roomValue;
+            }
+            console.log('Room assignments:', classRoomAssignments);
         }
         
         function selectAll() {
@@ -600,7 +639,8 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        selected_classes: Array.from(selectedClassNames)
+                        selected_classes: Array.from(selectedClassNames),
+                        room_assignments: classRoomAssignments
                     })
                 });
                 
