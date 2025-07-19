@@ -453,6 +453,40 @@
             
             document.getElementById(tabName).classList.add('active');
             document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+            
+            // If navigating to schedule tab, check if schedule should be cleared
+            if (tabName === 'schedule') {
+                checkScheduleStatus();
+            }
+        }
+        
+        async function checkScheduleStatus() {
+            // Check if the server still has a schedule
+            // If not, clear the frontend display
+            try {
+                const response = await fetch('/get_schedule_status');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!data.has_schedule) {
+                        // Server has no schedule, clear the frontend
+                        clearScheduleDisplay();
+                    }
+                }
+            } catch (error) {
+                console.log('Could not check schedule status:', error);
+                // On error, be safe and clear the display
+                clearScheduleDisplay();
+            }
+        }
+        
+        function clearScheduleDisplay() {
+            // Clear the schedule display
+            currentSchedule = null;
+            document.getElementById('scheduleRows').innerHTML = '';
+            document.getElementById('scheduleResult').style.display = 'none';
+            document.getElementById('exportBtn').style.display = 'none';
+            document.getElementById('generateBtn').disabled = selectedClassNames.size === 0;
+            console.log('Schedule display cleared');
         }
         
         function showAlert(message, type = 'info') {

@@ -48,6 +48,64 @@ PERIODS = {
 
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
+def clean_text_data(text):
+    """Clean text data by removing leading/trailing spaces, double spaces, and normalizing"""
+    if not text:
+        return text
+    
+    # Convert to string if not already
+    text = str(text)
+    
+    # Remove leading and trailing whitespace
+    text = text.strip()
+    
+    # Convert multiple spaces to single space
+    import re
+    text = re.sub(r'\s+', ' ', text)
+    
+    # Remove extra commas and periods at the end
+    text = text.rstrip('.,')
+    
+    # Clean up common spacing issues around commas
+    text = re.sub(r'\s*,\s*', ', ', text)
+    
+    return text
+
+def clean_student_list(student_string):
+    """Clean and normalize student names in semicolon-separated list"""
+    if not student_string:
+        return ""
+    
+    # Split by semicolon and clean each name
+    students = []
+    for student in str(student_string).split(';'):
+        cleaned_student = clean_text_data(student)
+        if cleaned_student:  # Only add non-empty names
+            students.append(cleaned_student)
+    
+    return '; '.join(students)
+
+def clean_csv_data(class_info):
+    """Clean all relevant fields in a class record"""
+    cleaned = {}
+    
+    # Clean each field that contains text
+    for key, value in class_info.items():
+        if key == 'Students':
+            # Special handling for student list
+            cleaned[key] = clean_student_list(value)
+        elif key in ['Class', 'Course Name', 'Teacher']:
+            # Clean text fields
+            cleaned[key] = clean_text_data(value)
+        elif key == 'Units':
+            # Clean units field but preserve numeric value
+            cleaned[key] = clean_text_data(value)
+        else:
+            # Keep other fields as-is but still clean them
+            cleaned[key] = clean_text_data(value) if value else value
+    
+    return cleaned
+
 class ClassScheduler:
     def __init__(self, classes, manual_rooms=None, manual_periods=None):
         self.classes = classes
@@ -58,10 +116,13 @@ class ClassScheduler:
         self.manual_period_assignments = manual_periods or {}
         
     def parse_students(self, student_string):
-        """Parse semicolon-separated student list"""
+        """Parse semicolon-separated student list with data cleaning"""
         if not student_string or student_string == '':
             return []
-        return [s.strip() for s in str(student_string).split(';') if s.strip()]
+        
+        # Clean the student list and split by semicolon
+        cleaned_list = clean_student_list(student_string)
+        return [s.strip() for s in cleaned_list.split(';') if s.strip()]
     
     def get_class_frequency(self, units):
         """Determine how many times per week a class meets based on units"""
@@ -686,17 +747,27 @@ def upload_csv():
         
         reader = csv.DictReader(StringIO(csv_content))
         
-        # Convert to list of dictionaries
-        classes_data = list(reader)
-        print(f"Classes parsed: {len(classes_data)}")  # Debug
+        # Convert to list of dictionaries and clean data
+        raw_classes = list(reader)
+        print(f"Raw classes parsed: {len(raw_classes)}")  # Debug
         
-        # Count students for each class
-        for class_info in classes_data:
-            if 'Students' in class_info and class_info['Students']:
-                student_list = [s.strip() for s in str(class_info['Students']).split(';') if s.strip()]
-                class_info['student_count'] = len(student_list)
+        # Clean data and count students for each class
+        classes_data = []
+        for class_info in raw_classes:
+            # Clean all data fields
+            cleaned_class = clean_csv_data(class_info)
+            
+            # Count students after cleaning
+            if 'Students' in cleaned_class and cleaned_class['Students']:
+                student_list = [s.strip() for s in str(cleaned_class['Students']).split(';') if s.strip()]
+                cleaned_class['student_count'] = len(student_list)
+                print(f"Cleaned class: {cleaned_class['Class']} - Teacher: '{cleaned_class['Teacher']}' - Students: {cleaned_class['student_count']}")  # Debug
             else:
-                class_info['student_count'] = 0
+                cleaned_class['student_count'] = 0
+                
+            classes_data.append(cleaned_class)
+        
+        print(f"Classes cleaned and processed: {len(classes_data)}")  # Debug
         
         print("Upload successful")  # Debug
         return jsonify({
@@ -734,8 +805,6 @@ def generate_schedule():
         scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments, manual_period_assignments)
         success, unscheduled = scheduler.generate_schedule(use_period_7)
         
-        current_schedule = scheduler.schedule
-        
         if success:
             # Add room information to each scheduled class
             enhanced_schedule = {}
@@ -753,6 +822,9 @@ def generate_schedule():
                         enhanced_class['room'] = room_name
                         enhanced_schedule[day][period].append(enhanced_class)
             
+            # Save the enhanced schedule with room assignments for PDF export
+            current_schedule = enhanced_schedule
+            
             return jsonify({
                 'success': True,
                 'schedule': enhanced_schedule,
@@ -763,6 +835,24 @@ def generate_schedule():
                 }
             })
         else:
+            # Even for partial schedules, save the enhanced schedule for PDF export
+            enhanced_schedule = {}
+            for day in scheduler.schedule:
+                enhanced_schedule[day] = {}
+                for period in scheduler.schedule[day]:
+                    enhanced_schedule[day][period] = []
+                    for class_info in scheduler.schedule[day][period]:
+                        # Get room assignment
+                        room_key = f"{day}_{period}_{class_info['Class']}"
+                        room_name = scheduler.room_assignments.get(room_key, 'TBD')
+                        
+                        # Add room info to class
+                        enhanced_class = class_info.copy()
+                        enhanced_class['room'] = room_name
+                        enhanced_schedule[day][period].append(enhanced_class)
+            
+            current_schedule = enhanced_schedule
+            
             return jsonify({
                 'success': False,
                 'error': 'Could not schedule all classes without conflicts',
@@ -775,7 +865,7 @@ def generate_schedule():
 
 @app.route('/set_selection', methods=['POST'])
 def set_selection():
-    global selected_classes, manual_room_assignments, manual_period_assignments
+    global selected_classes, manual_room_assignments, manual_period_assignments, current_schedule
     
     try:
         data = request.get_json()
@@ -783,9 +873,14 @@ def set_selection():
         manual_room_assignments = data.get('room_assignments', {})
         manual_period_assignments = data.get('period_assignments', {})
         
+        # Clear the current schedule when selections change
+        # This ensures users see a blank generate page after making changes
+        current_schedule = None
+        
         print(f"Selected classes: {selected_classes}")
         print(f"Manual room assignments: {manual_room_assignments}")
         print(f"Manual period assignments: {manual_period_assignments}")
+        print("Current schedule cleared due to selection changes")
         
         return jsonify({
             'success': True,
@@ -794,6 +889,14 @@ def set_selection():
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/get_schedule_status')
+def get_schedule_status():
+    """Check if there's currently a schedule available"""
+    global current_schedule
+    return jsonify({
+        'has_schedule': current_schedule is not None
+    })
 
 @app.route('/test_pdf')
 def test_pdf():

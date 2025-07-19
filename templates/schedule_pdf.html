@@ -59,6 +59,25 @@
             width: 16.66%;
         }
         
+        /* Page break after Period 5 */
+        .page-break-after-5 {
+            page-break-after: always;
+        }
+        
+        /* Dynamic Period 3 sizing - smaller when page needs space */
+        .period-3-compact td {
+            height: 35px; /* Compressed height for Chapel when needed */
+        }
+        
+        .period-3-compact .period-label {
+            font-size: 8px;
+            line-height: 1.1;
+        }
+        
+        .period-3-compact .period-label small {
+            font-size: 6px;
+        }
+        
         .period-label {
             background-color: #f0f0f0;
             font-weight: bold;
@@ -165,8 +184,12 @@
             </tr>
         </thead>
         <tbody>
+            {% set total_classes_1_2 = schedule.get('Monday', {}).get(1, [])|length + schedule.get('Monday', {}).get(2, [])|length + schedule.get('Tuesday', {}).get(1, [])|length + schedule.get('Tuesday', {}).get(2, [])|length + schedule.get('Wednesday', {}).get(1, [])|length + schedule.get('Wednesday', {}).get(2, [])|length + schedule.get('Thursday', {}).get(1, [])|length + schedule.get('Thursday', {}).get(2, [])|length + schedule.get('Friday', {}).get(1, [])|length + schedule.get('Friday', {}).get(2, [])|length %}
+            {% set total_classes_4_5 = schedule.get('Monday', {}).get(4, [])|length + schedule.get('Monday', {}).get(5, [])|length + schedule.get('Tuesday', {}).get(4, [])|length + schedule.get('Tuesday', {}).get(5, [])|length + schedule.get('Wednesday', {}).get(4, [])|length + schedule.get('Wednesday', {}).get(5, [])|length + schedule.get('Thursday', {}).get(4, [])|length + schedule.get('Thursday', {}).get(5, [])|length + schedule.get('Friday', {}).get(4, [])|length + schedule.get('Friday', {}).get(5, [])|length %}
+            {% set needs_compact_period_3 = (total_classes_1_2 + total_classes_4_5) > 15 %}
+            
             {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8] %}
-            <tr>
+            <tr {% if period_num == 3 and needs_compact_period_3 %}class="period-3-compact"{% elif period_num == 5 %}class="page-break-after-5"{% endif %}>
                 <td class="period-label {% if period_num == 3 %}chapel-period{% endif %}">
                     Period {{ period_num }}<br>
                     <small>
@@ -188,15 +211,7 @@
                         <div class="class-block">
                             <div class="class-title">{{ class_info['Class'] }}</div>
                             <div class="class-teacher">{{ class_info['Teacher'] }}</div>
-                            <div class="class-room">
-                                {% if 'GECO' in class_info['Course Name'] or 'GELA' in class_info['Course Name'] %}
-                                    Computer Lab
-                                {% elif class_info.get('student_count', 0) > 40 %}
-                                    Chapel
-                                {% else %}
-                                    Classroom 2
-                                {% endif %}
-                            </div>
+                            <div class="class-room">{{ class_info.get('room', 'TBD') }}</div>
                             <div class="class-students">{{ class_info.get('student_count', 0) }} students</div>
                         </div>
                         {% endfor %}
