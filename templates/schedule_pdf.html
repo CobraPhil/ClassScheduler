@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Class Schedule</title>
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 1cm;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+        
+        .header p {
+            margin: 5px 0 0 0;
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .schedule-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+        
+        .schedule-table th {
+            background-color: #667eea;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #333;
+            font-size: 11px;
+        }
+        
+        .schedule-table td {
+            border: 1px solid #333;
+            padding: 4px;
+            vertical-align: top;
+            height: 80px;
+            width: 16.66%;
+        }
+        
+        .period-label {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: center;
+            width: 80px;
+            font-size: 9px;
+        }
+        
+        .class-block {
+            background-color: #e8f0fe;
+            border: 1px solid #667eea;
+            border-radius: 3px;
+            padding: 3px;
+            margin-bottom: 2px;
+            font-size: 8px;
+        }
+        
+        .class-block:last-child {
+            margin-bottom: 0;
+        }
+        
+        .class-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 1px;
+            line-height: 1.1;
+        }
+        
+        .class-teacher {
+            color: #666;
+            font-size: 7px;
+            line-height: 1.1;
+        }
+        
+        .class-room {
+            color: #999;
+            font-size: 7px;
+            font-style: italic;
+        }
+        
+        .class-students {
+            color: #666;
+            font-size: 6px;
+            margin-top: 1px;
+        }
+        
+        .chapel-period {
+            background-color: #fff3cd;
+        }
+        
+        .special-period {
+            background-color: #f8d7da;
+        }
+        
+        .footer {
+            margin-top: 15px;
+            font-size: 8px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .room-legend {
+            margin-top: 10px;
+            font-size: 8px;
+        }
+        
+        .room-legend h4 {
+            margin: 0 0 5px 0;
+            font-size: 9px;
+        }
+        
+        .room-legend ul {
+            margin: 0;
+            padding-left: 15px;
+            list-style-type: disc;
+        }
+        
+        .room-legend li {
+            margin-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Weekly Class Schedule</h1>
+        <p>Generated on {{ datetime.now().strftime('%B %d, %Y at %I:%M %p') }}</p>
+    </div>
+    
+    <table class="schedule-table">
+        <thead>
+            <tr>
+                <th>Period</th>
+                <th>Monday</th>
+                <th>Tuesday</th>
+                <th>Wednesday</th>
+                <th>Thursday</th>
+                <th>Friday</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8] %}
+            <tr>
+                <td class="period-label {% if period_num == 3 %}chapel-period{% elif period_num >= 7 %}special-period{% endif %}">
+                    Period {{ period_num }}
+                    {% if period_num == 3 %}<br>(Chapel){% endif %}
+                    {% if period_num >= 7 %}<br>(Special){% endif %}
+                </td>
+                {% for day in days %}
+                <td>
+                    {% if schedule[day] and schedule[day][period_num] %}
+                        {% for class_info in schedule[day][period_num] %}
+                        <div class="class-block">
+                            <div class="class-title">{{ class_info['Class'] }}</div>
+                            <div class="class-teacher">{{ class_info['Teacher'] }}</div>
+                            <div class="class-room">
+                                {% if 'GECO' in class_info['Course Name'] or 'GELA' in class_info['Course Name'] %}
+                                    Computer Lab
+                                {% elif class_info.get('student_count', 0) > 40 %}
+                                    Chapel
+                                {% else %}
+                                    Classroom 2
+                                {% endif %}
+                            </div>
+                            <div class="class-students">{{ class_info.get('student_count', 0) }} students</div>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div class="room-legend">
+        <h4>Room Assignment Rules:</h4>
+        <ul>
+            <li><strong>Computer Lab:</strong> All computer classes (GECO) and ESL classes (GELA)</li>
+            <li><strong>Chapel:</strong> Classes with over 40 students</li>
+            <li><strong>Regular Classrooms:</strong> Classroom 2, 4, 5, 6 for other classes</li>
+            <li><strong>Period 3:</strong> Reserved for Chapel (no classes scheduled)</li>
+            <li><strong>Periods 7-8:</strong> Special periods used when necessary</li>
+        </ul>
+    </div>
+    
+    <div class="footer">
+        <p>Class Schedule Generator - Conflict-free scheduling with room assignments</p>
+    </div>
+</body>
+</html>

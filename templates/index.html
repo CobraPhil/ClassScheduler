@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Class Schedule Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .tabs {
+            display: flex;
+            background: #e9ecef;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #e9ecef;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+        .tab.active {
+            background: white;
+            border-bottom-color: #667eea;
+            color: #667eea;
+        }
+        .tab:hover {
+            background: #dee2e6;
+        }
+        .tab.active:hover {
+            background: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #667eea;
+            background-color: #f8f9ff;
+        }
+        .upload-area.dragover {
+            border-color: #667eea;
+            background-color: #f0f4ff;
+        }
+        .file-input {
+            display: none;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s;
+            margin: 10px 5px;
+            display: inline-block;
+            text-decoration: none;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 20px;
+            margin: 20px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+        }
+        .class-list {
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .class-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+        }
+        .class-item:hover {
+            background-color: #f8f9fa;
+        }
+        .class-item:last-child {
+            border-bottom: none;
+        }
+        .class-checkbox {
+            margin-right: 15px;
+            transform: scale(1.2);
+        }
+        .class-info {
+            flex: 1;
+        }
+        .class-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .class-details {
+            color: #666;
+            font-size: 14px;
+        }
+        .schedule-grid {
+            margin: 20px 0;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .schedule-header {
+            display: grid;
+            grid-template-columns: 100px repeat(5, 1fr);
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+        .schedule-header div {
+            padding: 15px 10px;
+            text-align: center;
+            border-right: 1px solid rgba(255,255,255,0.2);
+        }
+        .schedule-row {
+            display: grid;
+            grid-template-columns: 100px repeat(5, 1fr);
+            border-bottom: 1px solid #dee2e6;
+        }
+        .schedule-row:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .period-label {
+            padding: 15px 10px;
+            background: #e9ecef;
+            font-weight: bold;
+            text-align: center;
+            border-right: 1px solid #dee2e6;
+        }
+        .schedule-cell {
+            padding: 10px;
+            border-right: 1px solid #dee2e6;
+            min-height: 60px;
+        }
+        .class-block {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .class-block:last-child {
+            margin-bottom: 0;
+        }
+        .class-title {
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+        .class-teacher {
+            opacity: 0.9;
+            font-size: 11px;
+        }
+        .class-room {
+            opacity: 0.8;
+            font-size: 10px;
+            font-style: italic;
+            margin-top: 2px;
+        }
+        .class-students {
+            opacity: 0.7;
+            font-size: 9px;
+            color: #888;
+            margin-top: 1px;
+        }
+        .alert {
+            padding: 15px 20px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid;
+        }
+        .alert-success {
+            background-color: #d4edda;
+            border-color: #28a745;
+            color: #155724;
+        }
+        .alert-error {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+        .alert-info {
+            background-color: #d7f3ff;
+            border-color: #17a2b8;
+            color: #0c5460;
+        }
+        .alert-warning {
+            background-color: #fff3cd;
+            border-color: #ffc107;
+            color: #856404;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .conflict-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .conflict-list {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Class Schedule Generator</h1>
+            <p>Generate conflict-free weekly class schedules with room assignments</p>
+        </div>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('upload')">1. Upload CSV</div>
+            <div class="tab" onclick="showTab('select')">2. Select Classes</div>
+            <div class="tab" onclick="showTab('schedule')">3. Generate Schedule</div>
+        </div>
+        
+        <!-- Tab 1: Upload CSV -->
+        <div id="upload" class="tab-content active">
+            <h2>Upload ClassList.csv</h2>
+            <p>Select your ClassList.csv file containing class enrollment data with students, teachers, and course details.</p>
+            
+            <div class="upload-area" onclick="document.getElementById('csvFile').click()">
+                <h3>📁 Click to select CSV file</h3>
+                <p>or drag and drop your ClassList.csv file here</p>
+                <input type="file" id="csvFile" class="file-input" accept=".csv">
+            </div>
+            
+            <button class="btn" onclick="uploadCSV()" id="uploadBtn" disabled>Process CSV</button>
+            
+            <div id="uploadLog" class="log" style="display: none;"></div>
+        </div>
+        
+        <!-- Tab 2: Select Classes -->
+        <div id="select" class="tab-content">
+            <h2>Select Classes</h2>
+            <p>Review and select which classes to include in your schedule.</p>
+            
+            <div class="stats-grid" id="classStats" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalClasses">0</div>
+                    <div class="stat-label">Total Classes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="selectedClasses">0</div>
+                    <div class="stat-label">Selected Classes</div>
+                </div>
+            </div>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn btn-secondary" onclick="selectAll()">Select All</button>
+                <button class="btn btn-secondary" onclick="selectNone()">Select None</button>
+                <button class="btn" onclick="confirmSelection()" id="confirmBtn" disabled>Confirm Selection</button>
+            </div>
+            
+            <div id="classList" class="class-list"></div>
+        </div>
+        
+        <!-- Tab 3: Generate Schedule -->
+        <div id="schedule" class="tab-content">
+            <h2>Generate Class Schedule</h2>
+            <p>Generate a conflict-free weekly schedule with room assignments.</p>
+            
+            <div style="margin: 20px 0;">
+                <button class="btn" onclick="generateSchedule()" id="generateBtn" disabled>Generate Schedule</button>
+                <button class="btn btn-warning" onclick="generateSchedule(true)" id="generateWithP7Btn" style="display: none;">Try with Period 7</button>
+                <button class="btn btn-success" onclick="exportPDF()" id="exportBtn" style="display: none;">Export PDF</button>
+            </div>
+            
+            <div id="conflictInfo" class="conflict-info" style="display: none;">
+                <h4>⚠️ Scheduling Conflicts Detected</h4>
+                <p>Some classes could not be scheduled without conflicts. You can:</p>
+                <ul>
+                    <li>Try including Period 7 (normally reserved)</li>
+                    <li>Manually adjust class selections</li>
+                    <li>Review the conflict details below</li>
+                </ul>
+                <div id="conflictDetails" class="conflict-list"></div>
+            </div>
+            
+            <div id="scheduleStats" class="stats-grid" style="display: none;"></div>
+            <div id="scheduleDisplay" style="display: none;">
+                <div class="schedule-grid">
+                    <div class="schedule-header">
+                        <div>Period</div>
+                        <div>Monday</div>
+                        <div>Tuesday</div>
+                        <div>Wednesday</div>
+                        <div>Thursday</div>
+                        <div>Friday</div>
+                    </div>
+                    <div id="scheduleRows"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentClasses = [];
+        let selectedClassNames = new Set();
+        let currentSchedule = null;
+        
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            document.getElementById(tabName).classList.add('active');
+            document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+        }
+        
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type}`;
+            alertDiv.textContent = message;
+            
+            const activeTab = document.querySelector('.tab-content.active');
+            activeTab.insertBefore(alertDiv, activeTab.firstChild);
+            
+            setTimeout(() => {
+                if (alertDiv.parentNode) {
+                    alertDiv.parentNode.removeChild(alertDiv);
+                }
+            }, 5000);
+        }
+        
+        function updateLog(message) {
+            const log = document.getElementById('uploadLog');
+            log.style.display = 'block';
+            log.textContent += message + '\n';
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // File upload handling
+        document.getElementById('csvFile').addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                document.getElementById('uploadBtn').disabled = false;
+                updateLog(`Selected file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+            }
+        });
+        
+        // Drag and drop
+        const uploadArea = document.querySelector('.upload-area');
+        uploadArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            this.classList.add('dragover');
+        });
+        
+        uploadArea.addEventListener('dragleave', function() {
+            this.classList.remove('dragover');
+        });
+        
+        uploadArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.csv')) {
+                document.getElementById('csvFile').files = files;
+                document.getElementById('uploadBtn').disabled = false;
+                updateLog(`Dropped file: ${files[0].name}`);
+            } else {
+                showAlert('Please drop a CSV file', 'error');
+            }
+        });
+        
+        async function uploadCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                showAlert('Please select a CSV file', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('csv_file', file);
+            
+            updateLog('Processing CSV...');
+            document.getElementById('uploadBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateLog(`✓ Found ${result.classes_found} classes`);
+                    updateLog('✓ Processing complete!');
+                    
+                    currentClasses = result.classes;
+                    populateClassList();
+                    showTab('select');
+                    showAlert('CSV processed successfully!', 'success');
+                } else {
+                    updateLog(`✗ Error: ${result.error}`);
+                    showAlert(result.error, 'error');
+                }
+            } catch (error) {
+                updateLog(`✗ Network error: ${error.message}`);
+                showAlert('Network error occurred', 'error');
+            }
+            
+            document.getElementById('uploadBtn').disabled = false;
+        }
+        
+        function populateClassList() {
+            const classList = document.getElementById('classList');
+            classList.innerHTML = '';
+            
+            selectedClassNames.clear();
+            
+            currentClasses.forEach((cls, index) => {
+                const item = document.createElement('div');
+                item.className = 'class-item';
+                
+                item.innerHTML = `
+                    <input type="checkbox" class="class-checkbox" 
+                           onchange="toggleClass('${cls.name}', this.checked)">
+                    <div class="class-info">
+                        <div class="class-name">${cls.name}</div>
+                        <div class="class-details">${cls.teacher} • ${cls.student_count} students • ${cls.units} units</div>
+                    </div>
+                `;
+                
+                classList.appendChild(item);
+            });
+            
+            updateClassStats();
+            document.getElementById('classStats').style.display = 'grid';
+            document.getElementById('confirmBtn').disabled = false;
+        }
+        
+        function toggleClass(className, selected) {
+            if (selected) {
+                selectedClassNames.add(className);
+            } else {
+                selectedClassNames.delete(className);
+            }
+            updateClassStats();
+        }
+        
+        function updateClassStats() {
+            document.getElementById('totalClasses').textContent = currentClasses.length;
+            document.getElementById('selectedClasses').textContent = selectedClassNames.size;
+        }
+        
+        function selectAll() {
+            document.querySelectorAll('.class-checkbox').forEach(cb => {
+                cb.checked = true;
+                const className = cb.parentNode.querySelector('.class-name').textContent;
+                selectedClassNames.add(className);
+            });
+            updateClassStats();
+        }
+        
+        function selectNone() {
+            document.querySelectorAll('.class-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+            selectedClassNames.clear();
+            updateClassStats();
+        }
+        
+        async function confirmSelection() {
+            if (selectedClassNames.size === 0) {
+                showAlert('Please select at least one class', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/set_selection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        selected_classes: Array.from(selectedClassNames)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert(`${result.selected_count} classes selected`, 'success');
+                    document.getElementById('generateBtn').disabled = false;
+                    showTab('schedule');
+                } else {
+                    showAlert(result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Network error occurred', 'error');
+            }
+        }
+        
+        async function generateSchedule(usePeriod7 = false) {
+            const scheduleDisplay = document.getElementById('scheduleDisplay');
+            const conflictInfo = document.getElementById('conflictInfo');
+            const generateWithP7Btn = document.getElementById('generateWithP7Btn');
+            const exportBtn = document.getElementById('exportBtn');
+            
+            // Hide previous results
+            scheduleDisplay.style.display = 'none';
+            conflictInfo.style.display = 'none';
+            generateWithP7Btn.style.display = 'none';
+            exportBtn.style.display = 'none';
+            
+            // Show loading
+            const scheduleRows = document.getElementById('scheduleRows');
+            scheduleRows.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>Generating conflict-free schedule...</p>
+                </div>
+            `;
+            scheduleDisplay.style.display = 'block';
+            
+            try {
+                const response = await fetch('/generate_schedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        use_period_7: usePeriod7
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    displaySchedule(result.schedule, result.stats);
+                    showAlert('Schedule generated successfully!', 'success');
+                    exportBtn.style.display = 'inline-block';
+                } else {
+                    scheduleDisplay.style.display = 'none';
+                    
+                    if (result.can_try_period_7) {
+                        conflictInfo.style.display = 'block';
+                        generateWithP7Btn.style.display = 'inline-block';
+                        
+                        const conflictDetails = document.getElementById('conflictDetails');
+                        conflictDetails.innerHTML = '<h5>Unscheduled Classes:</h5>';
+                        result.unscheduled.forEach(item => {
+                            conflictDetails.innerHTML += `<p><strong>${item.class.Class}</strong> - ${item.conflicts.join(', ')}</p>`;
+                        });
+                    } else {
+                        showAlert('Could not generate conflict-free schedule even with Period 7. Manual adjustment required.', 'error');
+                    }
+                }
+            } catch (error) {
+                scheduleDisplay.style.display = 'none';
+                showAlert('Network error occurred', 'error');
+            }
+        }
+        
+        function displaySchedule(schedule, stats) {
+            const scheduleRows = document.getElementById('scheduleRows');
+            const scheduleStats = document.getElementById('scheduleStats');
+            
+            // Display stats
+            scheduleStats.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${stats.total_classes}</div>
+                    <div class="stat-label">Total Classes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.scheduled_classes}</div>
+                    <div class="stat-label">Scheduled Classes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${stats.unscheduled_classes}</div>
+                    <div class="stat-label">Unscheduled Classes</div>
+                </div>
+            `;
+            scheduleStats.style.display = 'grid';
+            
+            // Display schedule grid
+            scheduleRows.innerHTML = '';
+            currentSchedule = schedule;
+            
+            const periods = [1, 2, 3, 4, 5, 6, 7, 8];
+            const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+            
+            periods.forEach(period => {
+                const row = document.createElement('div');
+                row.className = 'schedule-row';
+                
+                let periodLabel = `Period ${period}`;
+                if (period === 3) periodLabel += ' (Chapel)';
+                
+                row.innerHTML = `<div class="period-label">${periodLabel}</div>`;
+                
+                days.forEach(day => {
+                    const cell = document.createElement('div');
+                    cell.className = 'schedule-cell';
+                    
+                    if (schedule[day] && schedule[day][period]) {
+                        schedule[day][period].forEach(classInfo => {
+                            const classBlock = document.createElement('div');
+                            classBlock.className = 'class-block';
+                            
+                            // Use room information from backend
+                            const roomName = classInfo.room || 'TBD';
+                            
+                            classBlock.innerHTML = `
+                                <div class="class-title">${classInfo.Class}</div>
+                                <div class="class-teacher">${classInfo.Teacher}</div>
+                                <div class="class-room">${roomName}</div>
+                                <div class="class-students">${classInfo.student_count || 0} students</div>
+                            `;
+                            cell.appendChild(classBlock);
+                        });
+                    }
+                    
+                    row.appendChild(cell);
+                });
+                
+                scheduleRows.appendChild(row);
+            });
+        }
+        
+
+        async function exportPDF() {
+            if (!currentSchedule) {
+                showAlert('No schedule to export', 'error');
+                return;
+            }
+            
+            try {
+                window.location.href = '/export_pdf';
+            } catch (error) {
+                showAlert('Export failed', 'error');
+            }
+        }
+    </script>
+</body>
+</html>
