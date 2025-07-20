@@ -1,10 +1,18 @@
-from flask import Flask, render_template, request, jsonify, session, send_file
+from flask import Flask, render_template, request, jsonify, session, send_file, make_response
 import csv
 from io import StringIO, BytesIO
-import weasyprint
 from datetime import datetime
 import uuid
 import os
+
+# Try to import weasyprint, but don't fail if it's not available
+try:
+    import weasyprint
+    WEASYPRINT_AVAILABLE = True
+    print("WeasyPrint available - PDF export enabled")
+except ImportError as e:
+    WEASYPRINT_AVAILABLE = False
+    print(f"WeasyPrint not available - PDF export disabled: {e}")
 
 app = Flask(__name__)
 app.secret_key = 'class_scheduler_secret_key'
@@ -973,32 +981,61 @@ def export_pdf():
         # Generate PDF
         pdf_buffer = BytesIO()
         
-        # Try to create WeasyPrint HTML object with more specific error handling
-        try:
-            html_doc = weasyprint.HTML(string=html_content)
-            print("WeasyPrint HTML object created successfully")  # Debug
-        except Exception as html_error:
-            print(f"Failed to create WeasyPrint HTML object: {html_error}")  # Debug
-            raise html_error
+        if WEASYPRINT_AVAILABLE:
+            # Try to create WeasyPrint HTML object
+            try:
+                html_doc = weasyprint.HTML(string=html_content)
+                print("WeasyPrint HTML object created successfully")  # Debug
+                
+                html_doc.write_pdf(pdf_buffer)
+                print("PDF written to buffer successfully")  # Debug
+                
+                pdf_buffer.seek(0)
+                pdf_size = len(pdf_buffer.getvalue())
+                print(f"PDF generated successfully, size: {pdf_size} bytes")  # Debug
+                
+                return send_file(
+                    pdf_buffer,
+                    as_attachment=True,
+                    download_name=f'class_schedule_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf',
+                    mimetype='application/pdf'
+                )
+            except Exception as pdf_error:
+                print(f"PDF generation failed: {pdf_error}")  # Debug
+                # Fall through to HTML export
         
-        # Try to write PDF
-        try:
-            html_doc.write_pdf(pdf_buffer)
-            print("PDF written to buffer successfully")  # Debug
-        except Exception as pdf_error:
-            print(f"Failed to write PDF: {pdf_error}")  # Debug
-            raise pdf_error
+        # Fallback: Export as HTML file
+        print("Exporting as HTML file (PDF not available)")  # Debug
         
-        pdf_buffer.seek(0)
-        pdf_size = len(pdf_buffer.getvalue())
-        print(f"PDF generated successfully, size: {pdf_size} bytes")  # Debug
+        # Create a complete HTML document for download
+        complete_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>GBBC Class Schedule</title>
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        .export-note {{ background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; margin-bottom: 20px; border-radius: 5px; }}
+        @media print {{
+            .export-note {{ display: none !important; }}
+            @page {{ size: landscape; margin: 1cm; }}
+        }}
+    </style>
+</head>
+<body>
+    <div class="export-note">
+        <strong>Note:</strong> PDF export is not available on this server. You can print this page to PDF using your browser's print function (Ctrl+P → Save as PDF).
+    </div>
+    {html_content.split('<body>')[1].split('</body>')[0] if '<body>' in html_content else html_content}
+</body>
+</html>"""
         
-        return send_file(
-            pdf_buffer,
-            as_attachment=True,
-            download_name=f'class_schedule_{datetime.now().strftime("%Y%m%d_%H%M")}.pdf',
-            mimetype='application/pdf'
-        )
+        # Create response with HTML file
+        response = make_response(complete_html)
+        response.headers['Content-Type'] = 'text/html; charset=utf-8'
+        response.headers['Content-Disposition'] = f'attachment; filename=class_schedule_{datetime.now().strftime("%Y%m%d_%H%M")}.html'
+        
+        return response
         
     except ImportError as e:
         print(f"WeasyPrint import error: {e}")  # Debug

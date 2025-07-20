@@ -1,4 +1,1 @@
 Flask==2.3.3
-WeasyPrint==59.0
-pydyf==0.8.0
-cffi==1.15.1
