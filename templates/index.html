@@ -405,7 +405,7 @@
             <div style="margin: 20px 0;">
                 <button class="btn" onclick="generateSchedule()" id="generateBtn" disabled>Generate Schedule</button>
                 <button class="btn btn-warning" onclick="generateSchedule(true)" id="generateWithP7Btn" style="display: none;">Try with Period 7</button>
-                <button class="btn btn-success" onclick="exportPDF()" id="exportBtn" style="display: none;">Export PDF</button>
+                <button class="btn btn-success" onclick="exportPDF()" id="exportBtn" style="display: none;">Export Schedule</button>
             </div>
             
             <div id="conflictInfo" class="conflict-info" style="display: none;">
@@ -922,7 +922,7 @@
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
                     
-                    showAlert('PDF exported successfully!', 'success');
+                    showAlert('Schedule exported successfully!', 'success');
                 } else {
                     console.log('Response not OK, status:', response.status);
                     // Try to get error message from response
