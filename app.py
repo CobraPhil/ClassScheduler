@@ -985,12 +985,15 @@ def export_pdf():
         return jsonify({'success': False, 'error': error_msg})
 
 if __name__ == '__main__':
-    # Check if running on Render (Render sets the PORT environment variable)
-    port = os.environ.get('PORT')
+    # Get port from environment (Render sets this)
+    port = int(os.environ.get('PORT', 5000))
     
-    if port:
+    # Always bind to 0.0.0.0 for Render, but check if we're in production
+    if 'RENDER' in os.environ or os.environ.get('PORT'):
         # Production deployment (Render)
-        app.run(debug=False, host='0.0.0.0', port=int(port))
+        print(f"Starting production server on 0.0.0.0:{port}")
+        app.run(debug=False, host='0.0.0.0', port=port)
     else:
         # Local development
-        app.run(debug=True, host='127.0.0.1', port=5000)
+        print(f"Starting development server on 127.0.0.1:{port}")
+        app.run(debug=True, host='127.0.0.1', port=port)
