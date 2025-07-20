@@ -795,15 +795,45 @@ def generate_schedule():
         data = request.get_json() or {}
         use_period_7 = data.get('use_period_7', False)
         
+        print(f"SCHEDULE DEBUG: Starting generate_schedule")
+        print(f"SCHEDULE DEBUG: selected_classes = {selected_classes}")
+        print(f"SCHEDULE DEBUG: classes_data length = {len(classes_data) if classes_data else 0}")
+        
         if not selected_classes:
+            print("SCHEDULE DEBUG: No classes selected")
             return jsonify({'success': False, 'error': 'No classes selected'})
         
         # Filter classes to only selected ones
         classes_to_schedule = [cls for cls in classes_data if cls['Class'] in selected_classes]
         
+        print(f"SCHEDULE DEBUG: classes_to_schedule length = {len(classes_to_schedule)}")
+        for i, cls in enumerate(classes_to_schedule[:3]):  # Show first 3 classes
+            print(f"SCHEDULE DEBUG: Class {i+1}: {cls.get('Class', 'Unknown')} - {cls.get('student_count', 0)} students")
+        
+        if not classes_to_schedule:
+            print("SCHEDULE DEBUG: Selected classes not found in data")
+            return jsonify({'success': False, 'error': 'Selected classes not found in data'})
+        
+        print(f"Manual room assignments: {manual_room_assignments}")
+        print(f"Manual period assignments: {manual_period_assignments}")
+        
         # Pass manual room and period assignments to scheduler
         scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments, manual_period_assignments)
+        print(f"SCHEDULE DEBUG: Created scheduler, calling generate_schedule")
         success, unscheduled = scheduler.generate_schedule(use_period_7)
+        print(f"SCHEDULE DEBUG: Schedule generation result: success={success}")
+        if unscheduled:
+            print(f"SCHEDULE DEBUG: Unscheduled classes: {len(unscheduled)}")
+        
+        # Debug the resulting schedule
+        if hasattr(scheduler, 'schedule'):
+            total_scheduled = 0
+            for day in scheduler.schedule:
+                for period in scheduler.schedule[day]:
+                    total_scheduled += len(scheduler.schedule[day][period])
+            print(f"SCHEDULE DEBUG: Total classes in schedule: {total_scheduled}")
+        else:
+            print("SCHEDULE DEBUG: No schedule attribute found on scheduler")
         
         if success:
             # Add room information to each scheduled class
