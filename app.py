@@ -1004,33 +1004,229 @@ def export_pdf():
                 print(f"PDF generation failed: {pdf_error}")  # Debug
                 # Fall through to HTML export
         
-        # Fallback: Export as HTML file
-        print("Exporting as HTML file (PDF not available)")  # Debug
+        # Fallback: Export as styled HTML file
+        print("Exporting as styled HTML file (PDF not available)")  # Debug
         
-        # Create a complete HTML document for download
+        # Create a complete HTML document with proper styling
         complete_html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <title>GBBC Class Schedule</title>
     <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; }}
-        .export-note {{ background: #d1ecf1; border: 1px solid #bee5eb; padding: 15px; margin-bottom: 20px; border-radius: 5px; }}
+        @page {{
+            size: A4 landscape;
+            margin: 1cm;
+        }}
+        
+        body {{
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            margin: 0;
+            padding: 20px;
+            background-color: white;
+        }}
+        
+        .export-note {{
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            font-size: 14px;
+        }}
+        
+        .header {{
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }}
+        
+        .header h1 {{
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }}
+        
+        .header p {{
+            margin: 5px 0 0 0;
+            color: #666;
+            font-size: 12px;
+        }}
+        
+        .schedule-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }}
+        
+        .schedule-table th {{
+            background-color: #667eea;
+            color: white;
+            padding: 8px 4px;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #333;
+            font-size: 11px;
+        }}
+        
+        .schedule-table td {{
+            border: 1px solid #333;
+            padding: 4px;
+            vertical-align: top;
+            height: 80px;
+            width: 16.66%;
+        }}
+        
+        .period-label {{
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: center;
+            width: 80px;
+            font-size: 9px;
+            line-height: 1.2;
+        }}
+        
+        .period-label small {{
+            font-size: 7px;
+            font-weight: normal;
+            color: #666;
+            display: block;
+            margin-top: 2px;
+        }}
+        
+        .class-block {{
+            background-color: #e8f0fe;
+            border: 1px solid #667eea;
+            border-radius: 3px;
+            padding: 3px;
+            margin-bottom: 2px;
+            font-size: 8px;
+        }}
+        
+        .class-block:last-child {{
+            margin-bottom: 0;
+        }}
+        
+        .class-title {{
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 1px;
+            line-height: 1.1;
+        }}
+        
+        .class-teacher {{
+            color: #666;
+            font-size: 7px;
+            line-height: 1.1;
+        }}
+        
+        .class-room {{
+            color: #999;
+            font-size: 7px;
+            font-style: italic;
+        }}
+        
+        .class-students {{
+            color: #333;
+            font-size: 6px;
+            margin-top: 1px;
+            font-weight: 500;
+        }}
+        
+        .chapel-period {{
+            background-color: #fff3cd;
+        }}
+        
+        .footer {{
+            margin-top: 15px;
+            font-size: 8px;
+            color: #666;
+            text-align: center;
+        }}
+        
         @media print {{
             .export-note {{ display: none !important; }}
+            body {{ padding: 0; }}
             @page {{ size: landscape; margin: 1cm; }}
         }}
     </style>
 </head>
 <body>
     <div class="export-note">
-        <strong>Note:</strong> PDF export is not available on this server. You can print this page to PDF using your browser's print function (Ctrl+P → Save as PDF).
+        <strong>📄 HTML Schedule Export</strong><br>
+        PDF export is not available on this server. You can print this page to PDF using your browser:<br>
+        <strong>Ctrl+P → More settings → Save as PDF → Layout: Landscape</strong>
     </div>
-    {html_content.split('<body>')[1].split('</body>')[0] if '<body>' in html_content else html_content}
+    
+    <div class="header">
+        <h1>GBBC Weekly Class Schedule</h1>
+        <p>Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}</p>
+    </div>
+    
+    <table class="schedule-table">
+        <thead>
+            <tr>
+                <th>Period</th>
+                <th>Monday</th>
+                <th>Tuesday</th>
+                <th>Wednesday</th>
+                <th>Thursday</th>
+                <th>Friday</th>
+            </tr>
+        </thead>
+        <tbody>"""
+        
+        # Generate the table body with the schedule data
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        for period_num in [1, 2, 3, 4, 5, 6, 7, 8]:
+            complete_html += f"""
+            <tr>
+                <td class="period-label {'chapel-period' if period_num == 3 else ''}">
+                    Period {period_num}<br>
+                    <small>"""
+            
+            # Add period times
+            if period_num == 1: complete_html += "7:00am-7:50am"
+            elif period_num == 2: complete_html += "8:00am-8:50am"
+            elif period_num == 3: complete_html += "9:00am-9:30am<br>(Chapel)"
+            elif period_num == 4: complete_html += "9:40am-10:30am"
+            elif period_num == 5: complete_html += "10:40am-11:30am"
+            elif period_num == 6: complete_html += "11:40am-12:30pm"
+            elif period_num == 7: complete_html += "12:40pm-1:30pm"
+            elif period_num == 8: complete_html += "6:00pm-6:50pm"
+            
+            complete_html += """</small>
+                </td>"""
+            
+            # Add cells for each day
+            for day in days:
+                complete_html += "<td>"
+                if current_schedule.get(day) and current_schedule[day].get(period_num):
+                    for class_info in current_schedule[day][period_num]:
+                        complete_html += f"""
+                        <div class="class-block">
+                            <div class="class-title">{class_info.get('Class', '')}</div>
+                            <div class="class-teacher">{class_info.get('Teacher', '')}</div>
+                            <div class="class-room">{class_info.get('room', 'TBD')}</div>
+                            <div class="class-students">{class_info.get('student_count', 0)} students</div>
+                        </div>"""
+                complete_html += "</td>"
+            
+            complete_html += "</tr>"
+        
+        complete_html += """
+        </tbody>
+    </table>
+    
+    <div class="footer">
+        <p>Class Schedule Generator - Conflict-free scheduling with room assignments</p>
+    </div>
 </body>
 </html>"""
         
-        # Create response with HTML file
+        # Create response with styled HTML file
         response = make_response(complete_html)
         response.headers['Content-Type'] = 'text/html; charset=utf-8'
         response.headers['Content-Disposition'] = f'attachment; filename=class_schedule_{datetime.now().strftime("%Y%m%d_%H%M")}.html'
