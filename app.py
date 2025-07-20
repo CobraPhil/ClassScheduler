@@ -985,10 +985,12 @@ def export_pdf():
         return jsonify({'success': False, 'error': error_msg})
 
 if __name__ == '__main__':
-    # For local development
-    if os.environ.get('FLASK_ENV') != 'production':
-        app.run(debug=True, host='127.0.0.1', port=5000)
+    # Check if running on Render (Render sets the PORT environment variable)
+    port = os.environ.get('PORT')
+    
+    if port:
+        # Production deployment (Render)
+        app.run(debug=False, host='0.0.0.0', port=int(port))
     else:
-        # For production deployment (Render)
-        port = int(os.environ.get('PORT', 5000))
-        app.run(debug=False, host='0.0.0.0', port=port)
+        # Local development
+        app.run(debug=True, host='127.0.0.1', port=5000)
