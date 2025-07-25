@@ -188,7 +188,7 @@
             {% set total_classes_4_5 = schedule.get('Monday', {}).get(4, [])|length + schedule.get('Monday', {}).get(5, [])|length + schedule.get('Tuesday', {}).get(4, [])|length + schedule.get('Tuesday', {}).get(5, [])|length + schedule.get('Wednesday', {}).get(4, [])|length + schedule.get('Wednesday', {}).get(5, [])|length + schedule.get('Thursday', {}).get(4, [])|length + schedule.get('Thursday', {}).get(5, [])|length + schedule.get('Friday', {}).get(4, [])|length + schedule.get('Friday', {}).get(5, [])|length %}
             {% set needs_compact_period_3 = (total_classes_1_2 + total_classes_4_5) > 15 %}
             
-            {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8] %}
+            {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] %}
             <tr {% if period_num == 3 and needs_compact_period_3 %}class="period-3-compact"{% elif period_num == 5 %}class="page-break-after-5"{% endif %}>
                 <td class="period-label {% if period_num == 3 %}chapel-period{% endif %}">
                     Period {{ period_num }}<br>
@@ -200,7 +200,9 @@
                     {% elif period_num == 5 %}10:40am-11:30am
                     {% elif period_num == 6 %}11:40am-12:30pm
                     {% elif period_num == 7 %}12:40pm-1:30pm
-                    {% elif period_num == 8 %}6:00pm-6:50pm
+                    {% elif period_num == 8 %}5:30pm-6:20pm
+                    {% elif period_num == 9 %}6:30pm-7:20pm
+                    {% elif period_num == 10 %}7:30pm-8:20pm
                     {% endif %}
                     </small>
                 </td>

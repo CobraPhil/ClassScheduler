@@ -51,7 +51,9 @@ PERIODS = {
     5: 'Period 5',
     6: 'Period 6',
     7: 'Period 7',
-    8: 'Period 8'
+    8: 'Period 8',
+    9: 'Period 9',
+    10: 'Period 10'
 }
 
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
@@ -187,7 +189,7 @@ class ClassScheduler:
     def evaluate_solution_quality(self, schedule):
         """Evaluate the quality of a scheduling solution"""
         score = 0
-        period_usage = {p: 0 for p in range(1, 9)}
+        period_usage = {p: 0 for p in range(1, 11)}
         
         # Count period usage
         for day in schedule:
@@ -203,6 +205,8 @@ class ClassScheduler:
         score -= period_usage[1] * 5   # Penalize Period 1 usage
         score -= period_usage[7] * 20  # Heavy penalty for Period 7
         score += period_usage[8] * 8   # Period 8 is okay for special teachers
+        score += period_usage[9] * 8   # Period 9 is okay for special teachers  
+        score += period_usage[10] * 8  # Period 10 is okay for special teachers
         
         return score, period_usage
     
@@ -571,7 +575,7 @@ class ClassScheduler:
         # Initialize schedule grid
         for day in DAYS:
             self.schedule[day] = {}
-            for period in range(1, 9):
+            for period in range(1, 11):
                 self.schedule[day][period] = []
         
         # Sort classes by enhanced priority hierarchy
@@ -711,6 +715,10 @@ class ClassScheduler:
             score += 5    # Period 7 is last resort
         elif period == 8:
             score += 80   # Period 8 is good for special teachers
+        elif period == 9:
+            score += 80   # Period 9 is good for special teachers
+        elif period == 10:
+            score += 80   # Period 10 is good for special teachers
         
         # Day combination scoring
         if frequency == 2 and day_option == ['Tuesday', 'Thursday']:
@@ -1180,7 +1188,7 @@ def export_pdf():
         
         # Generate the table body with the schedule data
         days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-        for period_num in [1, 2, 3, 4, 5, 6, 7, 8]:
+        for period_num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
             complete_html += f"""
             <tr>
                 <td class="period-label {'chapel-period' if period_num == 3 else ''}">
@@ -1195,7 +1203,9 @@ def export_pdf():
             elif period_num == 5: complete_html += "10:40am-11:30am"
             elif period_num == 6: complete_html += "11:40am-12:30pm"
             elif period_num == 7: complete_html += "12:40pm-1:30pm"
-            elif period_num == 8: complete_html += "6:00pm-6:50pm"
+            elif period_num == 8: complete_html += "5:30pm-6:20pm"
+            elif period_num == 9: complete_html += "6:30pm-7:20pm"
+            elif period_num == 10: complete_html += "7:30pm-8:20pm"
             
             complete_html += """</small>
                 </td>"""

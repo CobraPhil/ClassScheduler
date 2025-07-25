@@ -75,7 +75,9 @@ Available time periods Monday through Friday:
 - **Period 5**: 10:40am-11:30am (core period - preferred)
 - **Period 6**: 11:40am-12:30pm (core period - preferred)
 - **Period 7**: 12:40pm-1:30pm (lunch period - last resort)
-- **Period 8**: 6:00pm-6:50pm (evening - manual assignment only)
+- **Period 8**: 5:30pm-6:20pm (evening - manual assignment only)
+- **Period 9**: 6:30pm-7:20pm (evening - manual assignment only)
+- **Period 10**: 7:30pm-8:20pm (evening - manual assignment only)
 ## Enhanced Scheduling Algorithm
 
 ### Priority Hierarchy (Most to Least Constrained)
@@ -89,7 +91,7 @@ Available time periods Monday through Friday:
 1. **Fill Core Periods First** - Periods 2,4,5,6 are the primary teaching periods
 2. **Minimize Period 1** - Early morning only when necessary or manually assigned
 3. **Avoid Period 7** - Lunch period used as absolute last resort
-4. **Period 8 Manual Only** - Evening period only for manual assignments
+4. **Periods 8-10 Manual Only** - Evening periods only for manual assignments
 5. **Complete Core Before Fallback** - Fill all core periods before using Period 1 or 7
 
 ### Day Combination Logic
