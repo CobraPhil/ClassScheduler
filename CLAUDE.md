@@ -241,3 +241,8 @@ Available time periods Monday through Friday:
 - **Future Enhancements**: Additional pattern recognition, advanced optimization algorithms
 - **Performance Optimized** - Efficient algorithms handle complex multi-session scenarios
 - **User Experience Focus** - Intuitive interface with smart defaults and helpful feedback
+
+## Git Configuration
+- **GitHub Repository**: https://github.com/CobraPhil/ClassScheduler.git
+- **Deploy Command**: `git push origin master` (pushes to Render via GitHub integration)
+- **Note**: Personal access token required for authentication (stored securely outside repository)
