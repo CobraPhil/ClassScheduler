@@ -212,6 +212,73 @@ class ClassScheduler:
         
         return score, period_usage
     
+    def analyze_manual_session_pattern(self, class_name, total_frequency):
+        """Analyze manual session assignments to infer patterns for remaining sessions"""
+        pattern = {
+            'manual_days': [],
+            'manual_periods': [],
+            'manual_rooms': [],
+            'inferred_days': None,
+            'preferred_period': None,
+            'preferred_room': None
+        }
+        
+        if class_name not in self.manual_session_assignments:
+            return pattern
+            
+        # Extract manual assignments
+        sessions = self.manual_session_assignments[class_name]
+        for session_index, session in enumerate(sessions):
+            if session_index in self.manually_scheduled_sessions.get(class_name, set()):
+                # This session was manually scheduled (day and period specified)
+                pattern['manual_days'].append(session.get('day'))
+                pattern['manual_periods'].append(session.get('period'))
+                pattern['manual_rooms'].append(session.get('room'))
+        
+        # Also check room preferences for auto-scheduled sessions
+        if hasattr(self, 'manual_room_preferences') and class_name in self.manual_room_preferences:
+            for session_index, room in self.manual_room_preferences[class_name].items():
+                if session_index >= len(pattern['manual_rooms']):
+                    # Extend list if needed
+                    while len(pattern['manual_rooms']) <= session_index:
+                        pattern['manual_rooms'].append(None)
+                pattern['manual_rooms'][session_index] = room
+        
+        # Infer preferred period (use most common manual period)
+        manual_periods = [p for p in pattern['manual_periods'] if p != 'Open' and p is not None]
+        if manual_periods:
+            pattern['preferred_period'] = manual_periods[0]  # Use first manual period
+        
+        # Infer preferred room (use most common manual room)
+        manual_rooms = [r for r in pattern['manual_rooms'] if r and r != 'Open']
+        if manual_rooms:
+            pattern['preferred_room'] = manual_rooms[0]  # Use first manual room
+        
+        # Infer day pattern based on frequency and manual days
+        manual_days = [d for d in pattern['manual_days'] if d != 'Open' and d is not None]
+        if manual_days and total_frequency > len(manual_days):
+            if total_frequency == 2:
+                # 8-credit class - infer T/Th or M/W pattern
+                if 'Monday' in manual_days:
+                    pattern['inferred_days'] = ['Monday', 'Wednesday']
+                elif 'Tuesday' in manual_days:
+                    pattern['inferred_days'] = ['Tuesday', 'Thursday']  
+                elif 'Wednesday' in manual_days:
+                    pattern['inferred_days'] = ['Monday', 'Wednesday']
+                elif 'Thursday' in manual_days:
+                    pattern['inferred_days'] = ['Tuesday', 'Thursday']
+                elif 'Friday' in manual_days:
+                    pattern['inferred_days'] = ['Monday', 'Friday']
+            elif total_frequency == 3:
+                # 12-credit class - infer M/W/F pattern
+                if any(day in manual_days for day in ['Monday', 'Wednesday', 'Friday']):
+                    pattern['inferred_days'] = ['Monday', 'Wednesday', 'Friday']
+                else:
+                    # Fallback to T/W/Th if manual day is Tuesday/Thursday
+                    pattern['inferred_days'] = ['Tuesday', 'Wednesday', 'Thursday']
+        
+        return pattern
+    
     def assign_room(self, class_info):
         """Assign appropriate room based on class requirements and manual overrides"""
         class_name = class_info['Class']
@@ -276,9 +343,20 @@ class ClassScheduler:
         
         return conflicts
     
-    def can_schedule_class(self, class_info, day_option, period, assigned_rooms):
-        """Check if a class can be scheduled at the given day/period"""
-        assigned_room_type = self.assign_room(class_info)
+    def can_schedule_class(self, class_info, day_option, period, assigned_rooms, preferred_room=None):
+        """Check if a class can be scheduled at the given day/period with optional room preference"""
+        if preferred_room and preferred_room != 'Open':
+            # Check availability of preferred room
+            if preferred_room == 'Computer Lab':
+                assigned_room_type = 'computer_lab'
+            elif preferred_room == 'Chapel':
+                assigned_room_type = 'chapel'
+            elif preferred_room in ['Classroom 2', 'Classroom 4', 'Classroom 5', 'Classroom 6']:
+                assigned_room_type = preferred_room.lower().replace(' ', '_')
+            else:
+                assigned_room_type = self.assign_room(class_info)
+        else:
+            assigned_room_type = self.assign_room(class_info)
         conflicts_found = []
         
         for day in day_option:
@@ -312,9 +390,21 @@ class ClassScheduler:
         
         return len(conflicts_found) == 0, conflicts_found
     
-    def schedule_class(self, class_info, day_option, period, assigned_rooms):
-        """Schedule a class at the given day/period"""
-        assigned_room_type = self.assign_room(class_info)
+    def schedule_class(self, class_info, day_option, period, assigned_rooms, preferred_room=None):
+        """Schedule a class at the given day/period with optional room preference"""
+        if preferred_room and preferred_room != 'Open':
+            # Use preferred room if specified and available
+            print(f"    Trying preferred room: {preferred_room}")
+            if preferred_room == 'Computer Lab':
+                assigned_room_type = 'computer_lab'
+            elif preferred_room == 'Chapel':
+                assigned_room_type = 'chapel'
+            elif preferred_room in ['Classroom 2', 'Classroom 4', 'Classroom 5', 'Classroom 6']:
+                assigned_room_type = preferred_room.lower().replace(' ', '_')
+            else:
+                assigned_room_type = self.assign_room(class_info)
+        else:
+            assigned_room_type = self.assign_room(class_info)
         
         for day in day_option:
             # Add class to schedule
@@ -583,70 +673,170 @@ class ClassScheduler:
         # FIRST: Handle manual session assignments (highest priority)
         # Track which sessions have been manually scheduled
         manually_scheduled_sessions = {}  # class_name -> set of scheduled session indices
+        # Track manual room preferences for auto-scheduled sessions
+        manual_room_preferences = {}  # class_name -> session_index -> room_name
         
-        for class_name, sessions in self.manual_session_assignments.items():
-            # Find the class info
-            class_info = None
-            for cls in self.classes:
-                if cls['Class'] == class_name:
-                    class_info = cls
-                    break
-            
-            if not class_info:
-                continue
-                
-            print(f"Processing manual sessions for {class_name}: {sessions}")
-            manually_scheduled_sessions[class_name] = set()
-            
-            # Schedule each manually specified session
-            for session_index, session in enumerate(sessions):
-                period_value = session.get('period')
-                if (session.get('day') != 'Open' and 
-                    period_value not in ['Open', '', None] and
-                    str(period_value).isdigit()):
+        print(f"MANUAL DEBUG: Processing {len(self.manual_session_assignments)} classes with session assignments")
+        
+        try:
+            for class_name, sessions in self.manual_session_assignments.items():
+                try:
+                    # Find the class info
+                    class_info = None
+                    for cls in self.classes:
+                        if cls['Class'] == class_name:
+                            class_info = cls
+                            break
                     
-                    day = session['day']
-                    period = int(session['period'])
-                    room = session.get('room', 'TBD')
-                    
-                    print(f"  Manually scheduling session {session_index+1}: {day}, Period {period}, {room}")
-                    
-                    # Check for conflicts (but prioritize manual assignments)
-                    conflicts = self.check_conflicts(class_info, day, period, assigned_rooms)
-                    if conflicts:
-                        print(f"  WARNING: Manual assignment has conflicts: {conflicts}")
-                    
-                    # Schedule it anyway (manual assignments have priority)
-                    self.schedule[day][period].append(class_info)
-                    
-                    # Track room assignment properly
-                    room_key = f"{day}_{period}_{class_info['Class']}"
-                    
-                    if room != 'Open' and room != 'TBD':
-                        # Manual room assignment specified
-                        self.room_assignments[room_key] = room
-                        # Track room as occupied for this time slot
-                        assigned_rooms[f"{day}_{period}_{room}"] = class_info['Class']
-                    else:
-                        # Room is "Open" - auto-assign using normal logic
-                        assigned_room_type = self.assign_room(class_info)
+                    if not class_info:
+                        print(f"ERROR: Class info not found for {class_name}")
+                        continue
                         
-                        if assigned_room_type == 'computer_lab':
-                            self.room_assignments[room_key] = 'Computer Lab'
-                            assigned_rooms[f"{day}_{period}_computer_lab"] = class_info['Class']
-                        elif assigned_room_type == 'chapel':
-                            self.room_assignments[room_key] = 'Chapel'
-                            assigned_rooms[f"{day}_{period}_chapel"] = class_info['Class']
-                        else:
-                            # Will be assigned later during normal room assignment
-                            self.room_assignments[room_key] = 'TBD'
+                    print(f"Processing manual sessions for {class_name}: {sessions}")
+                    manually_scheduled_sessions[class_name] = set()
                     
-                    # Track this session as manually scheduled
-                    manually_scheduled_sessions[class_name].add(session_index)
+                    # Schedule each manually specified session
+                    for session_index, session in enumerate(sessions):
+                        try:
+                            period_value = session.get('period')
+                            day_value = session.get('day')
+                            room_value = session.get('room', 'Open')
+                            print(f"  Session {session_index}: day='{day_value}', period='{period_value}', room='{room_value}'")
+                            
+                            # Check if this is a fully manual assignment (day AND period specified)
+                            if (session.get('day') != 'Open' and 
+                                period_value not in ['Open', '', None] and
+                                str(period_value).isdigit()):
+                                
+                                day = session['day']
+                                period = int(session['period'])
+                                room = session.get('room', 'TBD')
+                                
+                                print(f"  FULLY MANUAL: Scheduling session {session_index+1}: {day}, Period {period}, {room}")
+                                
+                                # Check for conflicts (but prioritize manual assignments)
+                                try:
+                                    conflicts_found = []
+                                    # Check conflicts with existing classes in this time slot
+                                    existing_classes = self.schedule[day][period]
+                                    for existing_class in existing_classes:
+                                        class_conflicts = self.check_conflicts(class_info, existing_class)
+                                        if class_conflicts:
+                                            for conflict in class_conflicts:
+                                                conflicts_found.append(f"{conflict['type']} conflict with {existing_class['Class']}")
+                                    
+                                    if conflicts_found:
+                                        print(f"  WARNING: Manual assignment has conflicts: {conflicts_found}")
+                                except Exception as e:
+                                    print(f"  ERROR checking conflicts for {class_name}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
+                                
+                                # Schedule it anyway (manual assignments have priority)
+                                try:
+                                    self.schedule[day][period].append(class_info)
+                                    print(f"  SUCCESS: Added {class_name} to {day} Period {period}")
+                                except Exception as e:
+                                    print(f"  ERROR scheduling {class_name} on {day} Period {period}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
+                                    raise
+                                
+                                # Track room assignment properly
+                                try:
+                                    room_key = f"{day}_{period}_{class_info['Class']}"
+                                    
+                                    if room != 'Open' and room != 'TBD':
+                                        # Manual room assignment specified
+                                        self.room_assignments[room_key] = room
+                                        print(f"  ROOM: Assigned specific room {room} to {class_name}")
+                                        
+                                        # Track room as occupied for this time slot using the correct key format
+                                        if room == 'Computer Lab':
+                                            assigned_rooms[f"{day}_{period}_computer_lab"] = class_info['Class']
+                                        elif room == 'Chapel':
+                                            assigned_rooms[f"{day}_{period}_chapel"] = class_info['Class']
+                                        elif room == 'Classroom 2':
+                                            assigned_rooms[f"{day}_{period}_classroom_2"] = class_info['Class']
+                                        elif room == 'Classroom 4':
+                                            assigned_rooms[f"{day}_{period}_classroom_4"] = class_info['Class']
+                                        elif room == 'Classroom 5':
+                                            assigned_rooms[f"{day}_{period}_classroom_5"] = class_info['Class']
+                                        elif room == 'Classroom 6':
+                                            assigned_rooms[f"{day}_{period}_classroom_6"] = class_info['Class']
+                                        else:
+                                            print(f"  WARNING: Unknown room format: {room}")
+                                    else:
+                                        # Room is "Open" - auto-assign using normal logic
+                                        assigned_room_type = self.assign_room(class_info)
+                                        
+                                        if assigned_room_type == 'computer_lab':
+                                            self.room_assignments[room_key] = 'Computer Lab'
+                                            assigned_rooms[f"{day}_{period}_computer_lab"] = class_info['Class']
+                                            print(f"  ROOM: Auto-assigned Computer Lab to {class_name}")
+                                        elif assigned_room_type == 'chapel':
+                                            self.room_assignments[room_key] = 'Chapel'
+                                            assigned_rooms[f"{day}_{period}_chapel"] = class_info['Class']
+                                            print(f"  ROOM: Auto-assigned Chapel to {class_name}")
+                                        elif assigned_room_type in ['classroom_2', 'classroom_4', 'classroom_5', 'classroom_6']:
+                                            # Specific classroom assignment from manual assignment
+                                            room_display = assigned_room_type.replace('_', ' ').title()
+                                            self.room_assignments[room_key] = room_display
+                                            assigned_rooms[f"{day}_{period}_{assigned_room_type}"] = class_info['Class']
+                                            print(f"  ROOM: Auto-assigned {room_display} to {class_name}")
+                                        else:
+                                            # Regular classroom - find first available
+                                            available_room = self.get_available_regular_classroom(day, period, assigned_rooms)
+                                            if available_room:
+                                                room_display = available_room.replace('_', ' ').title()
+                                                self.room_assignments[room_key] = room_display
+                                                assigned_rooms[f"{day}_{period}_{available_room}"] = class_info['Class']
+                                                print(f"  ROOM: Auto-assigned available {room_display} to {class_name}")
+                                            else:
+                                                # No regular classroom available
+                                                self.room_assignments[room_key] = 'TBD'
+                                                print(f"  ROOM: No available room for {class_name}, marked as TBD")
+                                except Exception as e:
+                                    print(f"  ERROR in room assignment for {class_name}: {e}")
+                                    import traceback
+                                    traceback.print_exc()
+                                    raise
+                                
+                                # Track this session as manually scheduled
+                                manually_scheduled_sessions[class_name].add(session_index)
+                                print(f"  TRACKED: Session {session_index} marked as manually scheduled")
+                                
+                            else:
+                                # Check if there's a manual room preference (even if day/period are "Open")
+                                if room_value != 'Open' and room_value != 'TBD':
+                                    # Store room preference for auto-scheduling
+                                    if class_name not in manual_room_preferences:
+                                        manual_room_preferences[class_name] = {}
+                                    manual_room_preferences[class_name][session_index] = room_value
+                                    print(f"  ROOM PREF: Session {session_index} prefers {room_value}, will be auto-scheduled")
+                                else:
+                                    print(f"  AUTO: Session {session_index} will be fully auto-scheduled")
+                        except Exception as e:
+                            print(f"ERROR processing session {session_index} for {class_name}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            raise
+                except Exception as e:
+                    print(f"ERROR processing manual sessions for class {class_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    raise
+        except Exception as e:
+            print(f"CRITICAL ERROR in manual session processing: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
         
         # Store manually scheduled sessions info for use during auto-scheduling
         self.manually_scheduled_sessions = manually_scheduled_sessions
+        self.manual_room_preferences = manual_room_preferences
         print(f"Manual session scheduling complete. Manual sessions: {manually_scheduled_sessions}")
+        print(f"Room preferences captured: {manual_room_preferences}")
         
         # ALL classes remain in auto-scheduling (they may need additional sessions)
         remaining_classes = self.classes
@@ -700,7 +890,18 @@ class ClassScheduler:
                 print(f"  All sessions already manually scheduled, skipping")
                 continue
             
-            day_options = self.get_preferred_days(remaining_sessions_needed)  # Use remaining sessions for day options
+            # Analyze manual session patterns for smart consistency
+            manual_pattern = self.analyze_manual_session_pattern(class_name, frequency)
+            print(f"  Manual pattern analysis: {manual_pattern}")
+            
+            # Get smart day options based on manual pattern
+            if manual_pattern['inferred_days']:
+                day_options = [manual_pattern['inferred_days']]  # Use inferred pattern as first choice
+                fallback_options = self.get_preferred_days(remaining_sessions_needed)
+                day_options.extend([opt for opt in fallback_options if opt != manual_pattern['inferred_days']])
+                print(f"  Using smart day options based on manual pattern: {day_options[:2]}...")
+            else:
+                day_options = self.get_preferred_days(remaining_sessions_needed)  # Use remaining sessions for day options
             
             # Exclude days that are already manually scheduled for this class
             if class_name in self.manually_scheduled_sessions:
@@ -741,7 +942,19 @@ class ClassScheduler:
             # Determine period priorities for this class
             if has_manual_period:
                 period_groups = [[self.manual_period_assignments[class_name]]]
-            # Removed hardcoded teacher period assignments
+            elif manual_pattern['preferred_period']:
+                # Use preferred period from manual pattern analysis
+                preferred_period = manual_pattern['preferred_period']
+                print(f"  Using preferred period {preferred_period} from manual pattern")
+                period_groups = [
+                    [preferred_period],  # Try preferred period first
+                    [2, 4, 5, 6],       # Then core periods
+                    [1],                # Then Period 1
+                    [7] if use_period_7 else []  # Period 7 last resort
+                ]
+                # Remove the preferred period from other groups to avoid duplicates
+                period_groups = [[p for p in group if p != preferred_period] for group in period_groups]
+                period_groups = [group for group in period_groups if group]  # Remove empty groups
             else:
                 # Use period priority order based on aggressiveness
                 if aggressive_core_filling:
@@ -773,7 +986,7 @@ class ClassScheduler:
                         if scheduled:
                             break
                             
-                        can_schedule, period_conflicts = self.can_schedule_class(class_info, day_option, period, assigned_rooms)
+                        can_schedule, period_conflicts = self.can_schedule_class(class_info, day_option, period, assigned_rooms, manual_pattern.get('preferred_room'))
                         
                         if can_schedule:
                             # Found a valid slot - record it
@@ -785,7 +998,7 @@ class ClassScheduler:
                             
                             # If this is core period or manual assignment, schedule immediately
                             if period in [2, 4, 5, 6] or has_manual_period:
-                                self.schedule_class(class_info, day_option, period, assigned_rooms)
+                                self.schedule_class(class_info, day_option, period, assigned_rooms, manual_pattern.get('preferred_room'))
                                 scheduled = True
                                 print(f"Scheduled {class_info['Class']} on {day_option} at Period {period}")
                                 break
@@ -798,7 +1011,7 @@ class ClassScheduler:
             
             # If not scheduled in core periods but have a fallback option, use it
             if not scheduled and best_option:
-                self.schedule_class(class_info, best_option['day_option'], best_option['period'], assigned_rooms)
+                self.schedule_class(class_info, best_option['day_option'], best_option['period'], assigned_rooms, manual_pattern.get('preferred_room'))
                 scheduled = True
                 print(f"Scheduled {class_info['Class']} on {best_option['day_option']} at Period {best_option['period']} (fallback)")
             
@@ -809,12 +1022,86 @@ class ClassScheduler:
                 })
                 print(f"Could not schedule {class_info['Class']} - conflicts: {conflicts_found[:3]}...")  # Show first 3 conflicts
         
+        # Apply room preferences for auto-scheduled sessions
+        self.apply_room_preferences()
+        
         # Always return the current state - whether complete or partial
         total_classes = len(self.classes)
         scheduled_classes = total_classes - len(unscheduled_classes)
         print(f"Scheduling complete: {scheduled_classes}/{total_classes} classes scheduled")
         
         return len(unscheduled_classes) == 0, unscheduled_classes
+    
+    def apply_room_preferences(self):
+        """Apply manual room preferences to auto-scheduled sessions"""
+        try:
+            print("Starting apply_room_preferences method")
+            
+            if not hasattr(self, 'manual_room_preferences'):
+                print("No manual_room_preferences attribute found")
+                return
+                
+            if not self.manual_room_preferences:
+                print("No room preferences to apply")
+                return
+                
+            print(f"Applying room preferences: {self.manual_room_preferences}")
+            
+            for class_name, session_prefs in self.manual_room_preferences.items():
+                try:
+                    print(f"Processing room preferences for {class_name}: {session_prefs}")
+                    
+                    # Find all scheduled instances of this class
+                    scheduled_instances = []
+                    print(f"  Searching schedule for {class_name}")
+                    
+                    for day in self.schedule:
+                        for period in self.schedule[day]:
+                            for class_instance in self.schedule[day][period]:
+                                if class_instance['Class'] == class_name:
+                                    scheduled_instances.append({
+                                        'day': day,
+                                        'period': period,
+                                        'class_instance': class_instance
+                                    })
+                                    print(f"    Found instance: {day} Period {period}")
+                    
+                    print(f"  Found {len(scheduled_instances)} scheduled instances")
+                    
+                    # Apply room preferences to matching sessions
+                    for session_index, preferred_room in session_prefs.items():
+                        try:
+                            print(f"    Processing session {session_index} preference: {preferred_room}")
+                            
+                            if session_index < len(scheduled_instances):
+                                instance = scheduled_instances[session_index]
+                                day = instance['day']
+                                period = instance['period']
+                                
+                                # Update room assignment
+                                room_key = f"{day}_{period}_{class_name}"
+                                old_room = self.room_assignments.get(room_key, 'TBD')
+                                self.room_assignments[room_key] = preferred_room
+                                
+                                print(f"      Applied: Session {session_index} ({day} Period {period}) changed from {old_room} to {preferred_room}")
+                            else:
+                                print(f"      WARNING: Session {session_index} preference for {preferred_room} but only {len(scheduled_instances)} instances scheduled")
+                        except Exception as e:
+                            print(f"    ERROR processing session {session_index}: {e}")
+                            import traceback
+                            traceback.print_exc()
+                            
+                except Exception as e:
+                    print(f"ERROR processing class {class_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    
+            print("Completed apply_room_preferences method")
+            
+        except Exception as e:
+            print(f"CRITICAL ERROR in apply_room_preferences: {e}")
+            import traceback
+            traceback.print_exc()
     
     def get_option_priority_score(self, period, day_option, frequency):
         """Score an option based on period and day preferences"""
@@ -965,57 +1252,46 @@ def generate_schedule():
         else:
             print("SCHEDULE DEBUG: No schedule attribute found on scheduler")
         
-        if success:
-            # Add room information to each scheduled class
-            enhanced_schedule = {}
-            for day in scheduler.schedule:
-                enhanced_schedule[day] = {}
-                for period in scheduler.schedule[day]:
-                    enhanced_schedule[day][period] = []
-                    for class_info in scheduler.schedule[day][period]:
-                        # Get room assignment
-                        room_key = f"{day}_{period}_{class_info['Class']}"
-                        room_name = scheduler.room_assignments.get(room_key, 'TBD')
-                        
-                        # Add room info to class
-                        enhanced_class = class_info.copy()
-                        enhanced_class['room'] = room_name
-                        enhanced_schedule[day][period].append(enhanced_class)
-            
-            # Save the enhanced schedule with room assignments for PDF export
-            current_schedule = enhanced_schedule
-            
+        # Always build enhanced schedule (for both complete and partial schedules)
+        enhanced_schedule = {}
+        for day in scheduler.schedule:
+            enhanced_schedule[day] = {}
+            for period in scheduler.schedule[day]:
+                enhanced_schedule[day][period] = []
+                for class_info in scheduler.schedule[day][period]:
+                    # Get room assignment
+                    room_key = f"{day}_{period}_{class_info['Class']}"
+                    room_name = scheduler.room_assignments.get(room_key, 'TBD')
+                    
+                    # Add room info to class
+                    enhanced_class = class_info.copy()
+                    enhanced_class['room'] = room_name
+                    enhanced_schedule[day][period].append(enhanced_class)
+        
+        # Save the enhanced schedule with room assignments for PDF export
+        current_schedule = enhanced_schedule
+        
+        # Calculate how many classes were actually scheduled
+        scheduled_count = len(classes_to_schedule) - len(unscheduled)
+        
+        if success or scheduled_count > 0:
+            # Return success if all classes scheduled OR if we scheduled at least some classes
             return jsonify({
                 'success': True,
                 'schedule': enhanced_schedule,
                 'stats': {
                     'total_classes': len(classes_to_schedule),
-                    'scheduled_classes': len(classes_to_schedule) - len(unscheduled),
+                    'scheduled_classes': scheduled_count,
                     'unscheduled_classes': len(unscheduled)
-                }
+                },
+                'partial_schedule': not success,  # Indicate if this is a partial schedule
+                'unscheduled': unscheduled if not success else []
             })
         else:
-            # Even for partial schedules, save the enhanced schedule for PDF export
-            enhanced_schedule = {}
-            for day in scheduler.schedule:
-                enhanced_schedule[day] = {}
-                for period in scheduler.schedule[day]:
-                    enhanced_schedule[day][period] = []
-                    for class_info in scheduler.schedule[day][period]:
-                        # Get room assignment
-                        room_key = f"{day}_{period}_{class_info['Class']}"
-                        room_name = scheduler.room_assignments.get(room_key, 'TBD')
-                        
-                        # Add room info to class
-                        enhanced_class = class_info.copy()
-                        enhanced_class['room'] = room_name
-                        enhanced_schedule[day][period].append(enhanced_class)
-            
-            current_schedule = enhanced_schedule
-            
+            # Only return failure if NO classes could be scheduled
             return jsonify({
                 'success': False,
-                'error': 'Could not schedule all classes without conflicts',
+                'error': 'Could not schedule any classes',
                 'unscheduled': unscheduled,
                 'can_try_period_7': not use_period_7
             })
