@@ -29,8 +29,9 @@ def after_request(response):
 classes_data = []
 selected_classes = []
 current_schedule = None
-manual_room_assignments = {}  # Track manual room assignments
-manual_period_assignments = {}  # Track manual period assignments
+manual_room_assignments = {}  # Track manual room assignments (legacy)
+manual_period_assignments = {}  # Track manual period assignments (legacy)
+manual_session_assignments = {}  # Track individual session assignments (day, period, room per session)
 
 # Room definitions
 ROOMS = {
@@ -117,13 +118,14 @@ def clean_csv_data(class_info):
     return cleaned
 
 class ClassScheduler:
-    def __init__(self, classes, manual_rooms=None, manual_periods=None):
+    def __init__(self, classes, manual_rooms=None, manual_periods=None, manual_sessions=None):
         self.classes = classes
         self.schedule = {}
         self.conflicts = []
         self.room_assignments = {}
         self.manual_room_assignments = manual_rooms or {}
         self.manual_period_assignments = manual_periods or {}
+        self.manual_session_assignments = manual_sessions or {}
         
     def parse_students(self, student_string):
         """Parse semicolon-separated student list with data cleaning"""
@@ -578,7 +580,54 @@ class ClassScheduler:
             for period in range(1, 11):
                 self.schedule[day][period] = []
         
-        # Sort classes by enhanced priority hierarchy
+        # FIRST: Handle manual session assignments (highest priority)
+        manually_scheduled_classes = set()
+        for class_name, sessions in self.manual_session_assignments.items():
+            # Find the class info
+            class_info = None
+            for cls in self.classes:
+                if cls['Class'] == class_name:
+                    class_info = cls
+                    break
+            
+            if not class_info:
+                continue
+                
+            print(f"Processing manual sessions for {class_name}: {sessions}")
+            
+            # Schedule each manually specified session
+            for session_index, session in enumerate(sessions):
+                if (session.get('day') != 'Open' and 
+                    session.get('period') != 'Open' and 
+                    session.get('period') != ''):
+                    
+                    day = session['day']
+                    period = int(session['period'])
+                    room = session.get('room', 'TBD')
+                    
+                    print(f"  Scheduling session {session_index+1}: {day}, Period {period}, {room}")
+                    
+                    # Check for conflicts (but prioritize manual assignments)
+                    conflicts = self.check_conflicts(class_info, day, period, assigned_rooms)
+                    if conflicts:
+                        print(f"  WARNING: Manual assignment has conflicts: {conflicts}")
+                    
+                    # Schedule it anyway (manual assignments have priority)
+                    self.schedule[day][period].append(class_info)
+                    
+                    # Track room assignment
+                    room_key = f"{day}_{period}_{class_info['Class']}"
+                    if room != 'Open':
+                        self.room_assignments[room_key] = room
+                        assigned_rooms[f"{day}_{period}_{room}"] = class_info['Class']
+                    
+                    manually_scheduled_classes.add(class_name)
+        
+        # Remove manually scheduled classes from the list to be auto-scheduled
+        remaining_classes = [cls for cls in self.classes if cls['Class'] not in manually_scheduled_classes]
+        print(f"Manual scheduling complete. {len(manually_scheduled_classes)} classes manually placed, {len(remaining_classes)} remaining for auto-scheduling")
+        
+        # Sort remaining classes by enhanced priority hierarchy
         def class_priority(class_info):
             priority = 0
             student_count = len(self.parse_students(class_info['Students']))
@@ -605,7 +654,7 @@ class ClassScheduler:
             
             return priority
         
-        sorted_classes = sorted(self.classes, key=class_priority, reverse=True)
+        sorted_classes = sorted(remaining_classes, key=class_priority, reverse=True)
         unscheduled_classes = []
         
         # Enhanced scheduling with sophisticated search and optimization
@@ -805,7 +854,7 @@ def upload_csv():
 
 @app.route('/generate_schedule', methods=['POST'])
 def generate_schedule():
-    global current_schedule, selected_classes, manual_room_assignments, manual_period_assignments
+    global current_schedule, selected_classes, manual_room_assignments, manual_period_assignments, manual_session_assignments
     
     try:
         data = request.get_json() or {}
@@ -833,8 +882,8 @@ def generate_schedule():
         print(f"Manual room assignments: {manual_room_assignments}")
         print(f"Manual period assignments: {manual_period_assignments}")
         
-        # Pass manual room and period assignments to scheduler
-        scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments, manual_period_assignments)
+        # Pass manual assignments to scheduler
+        scheduler = ClassScheduler(classes_to_schedule, manual_room_assignments, manual_period_assignments, manual_session_assignments)
         print(f"SCHEDULE DEBUG: Created scheduler, calling generate_schedule")
         success, unscheduled = scheduler.generate_schedule(use_period_7)
         print(f"SCHEDULE DEBUG: Schedule generation result: success={success}")
@@ -911,35 +960,24 @@ def generate_schedule():
 
 @app.route('/set_selection', methods=['POST'])
 def set_selection():
-    global selected_classes, manual_room_assignments, manual_period_assignments, current_schedule
+    global selected_classes, manual_room_assignments, manual_period_assignments, manual_session_assignments, current_schedule
     
     try:
         data = request.get_json()
         selected_classes = data.get('selected_classes', [])
-        session_assignments = data.get('session_assignments', {})
+        manual_session_assignments = data.get('session_assignments', {})
         
         # Convert session assignments to the old format for backward compatibility
+        # This is a fallback for classes that don't have specific session assignments
         manual_room_assignments = {}
         manual_period_assignments = {}
-        
-        for class_name, sessions in session_assignments.items():
-            # For now, use the first session's assignments as the class default
-            # This maintains compatibility while we update the scheduler
-            if sessions and len(sessions) > 0:
-                first_session = sessions[0]
-                if first_session.get('room') != 'Open':
-                    manual_room_assignments[class_name] = first_session['room']
-                if first_session.get('period') != 'Open':
-                    manual_period_assignments[class_name] = first_session['period']
         
         # Clear the current schedule when selections change
         # This ensures users see a blank generate page after making changes
         current_schedule = None
         
         print(f"Selected classes: {selected_classes}")
-        print(f"Session assignments: {session_assignments}")
-        print(f"Converted room assignments: {manual_room_assignments}")
-        print(f"Converted period assignments: {manual_period_assignments}")
+        print(f"Manual session assignments: {manual_session_assignments}")
         print("Current schedule cleared due to selection changes")
         
         return jsonify({
