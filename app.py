@@ -618,11 +618,27 @@ class ClassScheduler:
                     # Schedule it anyway (manual assignments have priority)
                     self.schedule[day][period].append(class_info)
                     
-                    # Track room assignment
+                    # Track room assignment properly
                     room_key = f"{day}_{period}_{class_info['Class']}"
-                    if room != 'Open':
+                    
+                    if room != 'Open' and room != 'TBD':
+                        # Manual room assignment specified
                         self.room_assignments[room_key] = room
+                        # Track room as occupied for this time slot
                         assigned_rooms[f"{day}_{period}_{room}"] = class_info['Class']
+                    else:
+                        # Room is "Open" - auto-assign using normal logic
+                        assigned_room_type = self.assign_room(class_info)
+                        
+                        if assigned_room_type == 'computer_lab':
+                            self.room_assignments[room_key] = 'Computer Lab'
+                            assigned_rooms[f"{day}_{period}_computer_lab"] = class_info['Class']
+                        elif assigned_room_type == 'chapel':
+                            self.room_assignments[room_key] = 'Chapel'
+                            assigned_rooms[f"{day}_{period}_chapel"] = class_info['Class']
+                        else:
+                            # Will be assigned later during normal room assignment
+                            self.room_assignments[room_key] = 'TBD'
                     
                     # Track this session as manually scheduled
                     manually_scheduled_sessions[class_name].add(session_index)
