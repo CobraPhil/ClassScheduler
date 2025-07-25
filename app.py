@@ -581,7 +581,9 @@ class ClassScheduler:
                 self.schedule[day][period] = []
         
         # FIRST: Handle manual session assignments (highest priority)
-        manually_scheduled_classes = set()
+        # Track which sessions have been manually scheduled
+        manually_scheduled_sessions = {}  # class_name -> set of scheduled session indices
+        
         for class_name, sessions in self.manual_session_assignments.items():
             # Find the class info
             class_info = None
@@ -594,6 +596,7 @@ class ClassScheduler:
                 continue
                 
             print(f"Processing manual sessions for {class_name}: {sessions}")
+            manually_scheduled_sessions[class_name] = set()
             
             # Schedule each manually specified session
             for session_index, session in enumerate(sessions):
@@ -605,7 +608,7 @@ class ClassScheduler:
                     period = int(session['period'])
                     room = session.get('room', 'TBD')
                     
-                    print(f"  Scheduling session {session_index+1}: {day}, Period {period}, {room}")
+                    print(f"  Manually scheduling session {session_index+1}: {day}, Period {period}, {room}")
                     
                     # Check for conflicts (but prioritize manual assignments)
                     conflicts = self.check_conflicts(class_info, day, period, assigned_rooms)
@@ -621,11 +624,15 @@ class ClassScheduler:
                         self.room_assignments[room_key] = room
                         assigned_rooms[f"{day}_{period}_{room}"] = class_info['Class']
                     
-                    manually_scheduled_classes.add(class_name)
+                    # Track this session as manually scheduled
+                    manually_scheduled_sessions[class_name].add(session_index)
         
-        # Remove manually scheduled classes from the list to be auto-scheduled
-        remaining_classes = [cls for cls in self.classes if cls['Class'] not in manually_scheduled_classes]
-        print(f"Manual scheduling complete. {len(manually_scheduled_classes)} classes manually placed, {len(remaining_classes)} remaining for auto-scheduling")
+        # Store manually scheduled sessions info for use during auto-scheduling
+        self.manually_scheduled_sessions = manually_scheduled_sessions
+        print(f"Manual session scheduling complete. Manual sessions: {manually_scheduled_sessions}")
+        
+        # ALL classes remain in auto-scheduling (they may need additional sessions)
+        remaining_classes = self.classes
         
         # Sort remaining classes by enhanced priority hierarchy
         def class_priority(class_info):
@@ -659,14 +666,55 @@ class ClassScheduler:
         
         # Enhanced scheduling with sophisticated search and optimization
         for class_info in sorted_classes:
+            class_name = class_info['Class']
             frequency = self.get_class_frequency(class_info['Units'])
-            day_options = self.get_preferred_days(frequency)
+            
+            # Check if this class has manual sessions and calculate remaining sessions needed
+            manual_sessions_count = 0
+            if class_name in self.manually_scheduled_sessions:
+                manual_sessions_count = len(self.manually_scheduled_sessions[class_name])
+            
+            remaining_sessions_needed = frequency - manual_sessions_count
+            
+            print(f"Auto-scheduling {class_name}: needs {frequency} total sessions, {manual_sessions_count} already manual, {remaining_sessions_needed} remaining")
+            
+            # Skip if all sessions are already manually scheduled
+            if remaining_sessions_needed <= 0:
+                print(f"  All sessions already manually scheduled, skipping")
+                continue
+            
+            day_options = self.get_preferred_days(remaining_sessions_needed)  # Use remaining sessions for day options
+            
+            # Exclude days that are already manually scheduled for this class
+            if class_name in self.manually_scheduled_sessions:
+                manually_used_days = set()
+                if class_name in self.manual_session_assignments:
+                    for session_index in self.manually_scheduled_sessions[class_name]:
+                        if session_index < len(self.manual_session_assignments[class_name]):
+                            session = self.manual_session_assignments[class_name][session_index]
+                            if session.get('day') != 'Open':
+                                manually_used_days.add(session['day'])
+                
+                print(f"  Manual days used: {manually_used_days}")
+                
+                # Filter out manually used days from all day options
+                filtered_day_options = []
+                for day_option in day_options:
+                    available_days = [day for day in day_option if day not in manually_used_days]
+                    if len(available_days) == remaining_sessions_needed:
+                        filtered_day_options.append(available_days)
+                
+                if filtered_day_options:
+                    day_options = filtered_day_options
+                    print(f"  Filtered day options to avoid manual days: {day_options}")
+                else:
+                    print(f"  WARNING: No valid day combinations remain after excluding manual days")
+            
             scheduled = False
             conflicts_found = []
             best_option = None
             
-            # Check for manual period assignment first
-            class_name = class_info['Class']
+            # Check for manual period assignment first (legacy support)
             has_manual_period = class_name in self.manual_period_assignments
             
             # Teacher period requirements removed - now handled via manual dropdowns
