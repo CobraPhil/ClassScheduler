@@ -146,25 +146,47 @@
         }
         .class-item {
             display: flex;
-            align-items: center;
-            padding: 12px 20px;
+            align-items: flex-start;
+            padding: 15px 20px;
             border-bottom: 1px solid #eee;
             transition: background-color 0.2s;
         }
-        .class-room-selector, .class-period-selector {
+        
+        .class-sessions-container {
+            display: flex;
+            gap: 15px;
             margin-left: 15px;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-            background-color: white;
-            min-width: 150px;
-            font-weight: 600;
+            flex-wrap: wrap;
         }
         
-        .class-period-selector {
-            margin-left: 10px;
-            min-width: 180px;
+        .session-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 120px;
+        }
+        
+        .session-label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #666;
+            text-align: center;
+            margin-bottom: 3px;
+        }
+        
+        .session-dropdown {
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 11px;
+            background-color: white;
+            min-width: 110px;
+            font-weight: 500;
+        }
+        
+        .session-dropdown:focus {
+            border-color: #667eea;
+            outline: none;
         }
         .class-item:hover {
             background-color: #f8f9fa;
@@ -440,8 +462,7 @@
         let currentClasses = [];
         let selectedClassNames = new Set();
         let currentSchedule = null;
-        let classRoomAssignments = {}; // Track manual room assignments
-        let classPeriodAssignments = {}; // Track manual period assignments
+        let classSessionAssignments = {}; // Track manual session assignments (day, period, room per session)
         
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -598,6 +619,13 @@
                 const item = document.createElement('div');
                 item.className = 'class-item';
                 
+                // Determine number of sessions based on units
+                const units = parseInt(cls.units) || 4;
+                let numSessions;
+                if (units <= 4) numSessions = 1;
+                else if (units <= 8) numSessions = 2;
+                else numSessions = 3;
+                
                 // Determine default room assignment
                 const courseName = cls.name.toUpperCase();
                 let defaultRoom = 'Open';
@@ -605,8 +633,60 @@
                 // Computer classes (GECO) and ESL classes (GELA) default to Computer Lab
                 if (courseName.includes('GECO') || courseName.includes('GELA')) {
                     defaultRoom = 'Computer Lab';
-                    // Set this in our room assignments tracking
-                    classRoomAssignments[cls.name] = 'Computer Lab';
+                }
+                
+                // Initialize class session assignments
+                if (!classSessionAssignments[cls.name]) {
+                    classSessionAssignments[cls.name] = [];
+                    for (let i = 0; i < numSessions; i++) {
+                        classSessionAssignments[cls.name].push({
+                            day: 'Open',
+                            period: 'Open', 
+                            room: defaultRoom
+                        });
+                    }
+                }
+                
+                // Generate sessions HTML  
+                let sessionsHTML = '';
+                for (let sessionIndex = 0; sessionIndex < numSessions; sessionIndex++) {
+                    const sessionNum = sessionIndex + 1;
+                    const currentSession = classSessionAssignments[cls.name][sessionIndex];
+                    
+                    sessionsHTML += `
+                        <div class="session-group">
+                            <div class="session-label">Class ${sessionNum}</div>
+                            <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'day', this.value)">
+                                <option value="Open" ${currentSession.day === 'Open' ? 'selected' : ''}>Open</option>
+                                <option value="Monday" ${currentSession.day === 'Monday' ? 'selected' : ''}>Monday</option>
+                                <option value="Tuesday" ${currentSession.day === 'Tuesday' ? 'selected' : ''}>Tuesday</option>
+                                <option value="Wednesday" ${currentSession.day === 'Wednesday' ? 'selected' : ''}>Wednesday</option>
+                                <option value="Thursday" ${currentSession.day === 'Thursday' ? 'selected' : ''}>Thursday</option>
+                                <option value="Friday" ${currentSession.day === 'Friday' ? 'selected' : ''}>Friday</option>
+                            </select>
+                            <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'period', this.value)">
+                                <option value="Open" ${currentSession.period === 'Open' ? 'selected' : ''}>Open</option>
+                                <option value="1" ${currentSession.period === '1' ? 'selected' : ''}>Period 1</option>
+                                <option value="2" ${currentSession.period === '2' ? 'selected' : ''}>Period 2</option>
+                                <option value="4" ${currentSession.period === '4' ? 'selected' : ''}>Period 4</option>
+                                <option value="5" ${currentSession.period === '5' ? 'selected' : ''}>Period 5</option>
+                                <option value="6" ${currentSession.period === '6' ? 'selected' : ''}>Period 6</option>
+                                <option value="7" ${currentSession.period === '7' ? 'selected' : ''}>Period 7</option>
+                                <option value="8" ${currentSession.period === '8' ? 'selected' : ''}>Period 8</option>
+                                <option value="9" ${currentSession.period === '9' ? 'selected' : ''}>Period 9</option>
+                                <option value="10" ${currentSession.period === '10' ? 'selected' : ''}>Period 10</option>
+                            </select>
+                            <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'room', this.value)">
+                                <option value="Open" ${currentSession.room === 'Open' ? 'selected' : ''}>Open</option>
+                                <option value="Computer Lab" ${currentSession.room === 'Computer Lab' ? 'selected' : ''}>Computer Lab</option>
+                                <option value="Chapel" ${currentSession.room === 'Chapel' ? 'selected' : ''}>Chapel</option>
+                                <option value="Classroom 2" ${currentSession.room === 'Classroom 2' ? 'selected' : ''}>Classroom 2</option>
+                                <option value="Classroom 4" ${currentSession.room === 'Classroom 4' ? 'selected' : ''}>Classroom 4</option>
+                                <option value="Classroom 5" ${currentSession.room === 'Classroom 5' ? 'selected' : ''}>Classroom 5</option>
+                                <option value="Classroom 6" ${currentSession.room === 'Classroom 6' ? 'selected' : ''}>Classroom 6</option>
+                            </select>
+                        </div>
+                    `;
                 }
                 
                 item.innerHTML = `
@@ -616,27 +696,9 @@
                         <div class="class-name">${cls.name}</div>
                         <div class="class-details">${cls.teacher} • ${cls.student_count} students • ${cls.units} units</div>
                     </div>
-                    <select class="class-room-selector" id="room-${index}" onchange="updateClassRoom('${cls.name}', this.value)">
-                        <option value="Open" ${defaultRoom === 'Open' ? 'selected' : ''}>Open</option>
-                        <option value="Computer Lab" ${defaultRoom === 'Computer Lab' ? 'selected' : ''}>Computer Lab</option>
-                        <option value="Chapel" ${defaultRoom === 'Chapel' ? 'selected' : ''}>Chapel</option>
-                        <option value="Classroom 2" ${defaultRoom === 'Classroom 2' ? 'selected' : ''}>Classroom 2</option>
-                        <option value="Classroom 4" ${defaultRoom === 'Classroom 4' ? 'selected' : ''}>Classroom 4</option>
-                        <option value="Classroom 5" ${defaultRoom === 'Classroom 5' ? 'selected' : ''}>Classroom 5</option>
-                        <option value="Classroom 6" ${defaultRoom === 'Classroom 6' ? 'selected' : ''}>Classroom 6</option>
-                    </select>
-                    <select class="class-period-selector" id="period-${index}" onchange="updateClassPeriod('${cls.name}', this.value)">
-                        <option value="Open" selected>Open</option>
-                        <option value="1">Period 1 (7:00am-7:50am)</option>
-                        <option value="2">Period 2 (8:00am-8:50am)</option>
-                        <option value="4">Period 4 (9:40am-10:30am)</option>
-                        <option value="5">Period 5 (10:40am-11:30am)</option>
-                        <option value="6">Period 6 (11:40am-12:30pm)</option>
-                        <option value="7">Period 7 (12:40pm-1:30pm)</option>
-                        <option value="8">Period 8 (5:30pm-6:20pm)</option>
-                        <option value="9">Period 9 (6:30pm-7:20pm)</option>
-                        <option value="10">Period 10 (7:30pm-8:20pm)</option>
-                    </select>
+                    <div class="class-sessions-container">
+                        ${sessionsHTML}
+                    </div>
                 `;
                 
                 classList.appendChild(item);
@@ -661,22 +723,28 @@
             document.getElementById('selectedClasses').textContent = selectedClassNames.size;
         }
         
-        function updateClassRoom(className, roomValue) {
-            if (roomValue === 'Open') {
-                delete classRoomAssignments[className];
-            } else {
-                classRoomAssignments[className] = roomValue;
+        function updateClassSession(className, sessionIndex, field, value) {
+            if (!classSessionAssignments[className]) {
+                classSessionAssignments[className] = [];
             }
-            console.log('Room assignments:', classRoomAssignments);
-        }
-        
-        function updateClassPeriod(className, periodValue) {
-            if (periodValue === 'Open') {
-                delete classPeriodAssignments[className];
-            } else {
-                classPeriodAssignments[className] = parseInt(periodValue);
+            
+            // Ensure the session array has enough elements
+            while (classSessionAssignments[className].length <= sessionIndex) {
+                classSessionAssignments[className].push({
+                    day: 'Open',
+                    period: 'Open',
+                    room: 'Open'
+                });
             }
-            console.log('Period assignments:', classPeriodAssignments);
+            
+            // Update the specific field
+            if (field === 'period' && value !== 'Open') {
+                classSessionAssignments[className][sessionIndex][field] = parseInt(value);
+            } else {
+                classSessionAssignments[className][sessionIndex][field] = value;
+            }
+            
+            console.log('Session assignments:', classSessionAssignments);
         }
         
         function selectAll() {
@@ -710,8 +778,7 @@
                     },
                     body: JSON.stringify({
                         selected_classes: Array.from(selectedClassNames),
-                        room_assignments: classRoomAssignments,
-                        period_assignments: classPeriodAssignments
+                        session_assignments: classSessionAssignments
                     })
                 });
                 

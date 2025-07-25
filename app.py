@@ -916,16 +916,30 @@ def set_selection():
     try:
         data = request.get_json()
         selected_classes = data.get('selected_classes', [])
-        manual_room_assignments = data.get('room_assignments', {})
-        manual_period_assignments = data.get('period_assignments', {})
+        session_assignments = data.get('session_assignments', {})
+        
+        # Convert session assignments to the old format for backward compatibility
+        manual_room_assignments = {}
+        manual_period_assignments = {}
+        
+        for class_name, sessions in session_assignments.items():
+            # For now, use the first session's assignments as the class default
+            # This maintains compatibility while we update the scheduler
+            if sessions and len(sessions) > 0:
+                first_session = sessions[0]
+                if first_session.get('room') != 'Open':
+                    manual_room_assignments[class_name] = first_session['room']
+                if first_session.get('period') != 'Open':
+                    manual_period_assignments[class_name] = first_session['period']
         
         # Clear the current schedule when selections change
         # This ensures users see a blank generate page after making changes
         current_schedule = None
         
         print(f"Selected classes: {selected_classes}")
-        print(f"Manual room assignments: {manual_room_assignments}")
-        print(f"Manual period assignments: {manual_period_assignments}")
+        print(f"Session assignments: {session_assignments}")
+        print(f"Converted room assignments: {manual_room_assignments}")
+        print(f"Converted period assignments: {manual_period_assignments}")
         print("Current schedule cleared due to selection changes")
         
         return jsonify({
