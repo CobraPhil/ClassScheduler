@@ -600,9 +600,10 @@ class ClassScheduler:
             
             # Schedule each manually specified session
             for session_index, session in enumerate(sessions):
+                period_value = session.get('period')
                 if (session.get('day') != 'Open' and 
-                    session.get('period') != 'Open' and 
-                    session.get('period') != ''):
+                    period_value not in ['Open', '', None] and
+                    str(period_value).isdigit()):
                     
                     day = session['day']
                     period = int(session['period'])
