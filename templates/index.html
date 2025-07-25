@@ -666,15 +666,15 @@
                             </select>
                             <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'period', this.value)">
                                 <option value="Open" ${currentSession.period === 'Open' ? 'selected' : ''}>Open</option>
-                                <option value="1" ${currentSession.period === '1' ? 'selected' : ''}>Period 1</option>
-                                <option value="2" ${currentSession.period === '2' ? 'selected' : ''}>Period 2</option>
-                                <option value="4" ${currentSession.period === '4' ? 'selected' : ''}>Period 4</option>
-                                <option value="5" ${currentSession.period === '5' ? 'selected' : ''}>Period 5</option>
-                                <option value="6" ${currentSession.period === '6' ? 'selected' : ''}>Period 6</option>
-                                <option value="7" ${currentSession.period === '7' ? 'selected' : ''}>Period 7</option>
-                                <option value="8" ${currentSession.period === '8' ? 'selected' : ''}>Period 8</option>
-                                <option value="9" ${currentSession.period === '9' ? 'selected' : ''}>Period 9</option>
-                                <option value="10" ${currentSession.period === '10' ? 'selected' : ''}>Period 10</option>
+                                <option value="1" ${currentSession.period === '1' ? 'selected' : ''}>Period 1 (7:00am-7:50am)</option>
+                                <option value="2" ${currentSession.period === '2' ? 'selected' : ''}>Period 2 (8:00am-8:50am)</option>
+                                <option value="4" ${currentSession.period === '4' ? 'selected' : ''}>Period 4 (9:40am-10:30am)</option>
+                                <option value="5" ${currentSession.period === '5' ? 'selected' : ''}>Period 5 (10:40am-11:30am)</option>
+                                <option value="6" ${currentSession.period === '6' ? 'selected' : ''}>Period 6 (11:40am-12:30pm)</option>
+                                <option value="7" ${currentSession.period === '7' ? 'selected' : ''}>Period 7 (12:40pm-1:30pm)</option>
+                                <option value="8" ${currentSession.period === '8' ? 'selected' : ''}>Period 8 (5:30pm-6:20pm)</option>
+                                <option value="9" ${currentSession.period === '9' ? 'selected' : ''}>Period 9 (6:30pm-7:20pm)</option>
+                                <option value="10" ${currentSession.period === '10' ? 'selected' : ''}>Period 10 (7:30pm-8:20pm)</option>
                             </select>
                             <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'room', this.value)">
                                 <option value="Open" ${currentSession.room === 'Open' ? 'selected' : ''}>Open</option>
