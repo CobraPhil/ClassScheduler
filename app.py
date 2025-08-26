@@ -820,6 +820,7 @@ class ClassScheduler:
         self.schedule = {}
         self.conflicts = []
         self.room_assignments = {}
+        self.manual_conflicts = []  # Track manual assignment conflicts
         assigned_rooms = {}  # Track room assignments: "day_period_room" -> class_name
         
         # Available periods (excluding period 3 for chapel)
@@ -949,7 +950,7 @@ class ClassScheduler:
                                 
                                 print(f"  FULLY MANUAL: Scheduling session {session_index+1}: {day}, Period {period}, {room}")
                                 
-                                # Check for conflicts (but prioritize manual assignments)
+                                # Check for conflicts - BLOCK manual assignments if conflicts exist
                                 try:
                                     conflicts_found = []
                                     # Check conflicts with existing classes in this time slot
@@ -961,13 +962,26 @@ class ClassScheduler:
                                                 conflicts_found.append(f"{conflict['type']} conflict with {existing_class['Class']}")
                                     
                                     if conflicts_found:
-                                        print(f"  WARNING: Manual assignment has conflicts: {conflicts_found}")
+                                        print(f"  CONFLICT ERROR: Manual assignment blocked due to conflicts: {conflicts_found}")
+                                        print(f"  BLOCKED: Cannot schedule {class_name} on {day} Period {period} - conflicts detected")
+                                        # Add to conflicts list instead of scheduling
+                                        conflict_info = {
+                                            'class': class_info,
+                                            'requested_slot': f"{day} Period {period}",
+                                            'conflicts': conflicts_found,
+                                            'type': 'manual_assignment_conflict'
+                                        }
+                                        if not hasattr(self, 'manual_conflicts'):
+                                            self.manual_conflicts = []
+                                        self.manual_conflicts.append(conflict_info)
+                                        continue  # Skip to next session
+                                    
                                 except Exception as e:
                                     print(f"  ERROR checking conflicts for {class_name}: {e}")
                                     import traceback
                                     traceback.print_exc()
                                 
-                                # Schedule it anyway (manual assignments have priority)
+                                # Only schedule if no conflicts were found
                                 try:
                                     self.schedule[day][period].append(class_info)
                                     print(f"  SUCCESS: Added {class_name} to {day} Period {period}")
@@ -1613,6 +1627,49 @@ def generate_schedule():
                         }
                         response_data['scheduling_errors'].append(error_info)
                         print(f"ERROR DEBUG: Added error info for {missing_class}")
+            
+            # Check for manual assignment conflicts - only report conflicts for classes that weren't eventually scheduled
+            manual_conflicts = getattr(scheduler, 'manual_conflicts', [])
+            if manual_conflicts:
+                print(f"MANUAL CONFLICT DEBUG: Found {len(manual_conflicts)} manual assignment conflicts")
+                if 'scheduling_errors' not in response_data:
+                    response_data['scheduling_errors'] = []
+                
+                # Only add manual conflicts for classes that were NOT successfully scheduled through auto-scheduling
+                for conflict in manual_conflicts:
+                    class_info = conflict['class']
+                    class_name = class_info['Class']
+                    
+                    # Check if this class was eventually scheduled through auto-scheduling
+                    if class_name not in scheduled_class_names:
+                        # Class was not scheduled at all - report the manual conflict
+                        error_info = {
+                            'class_name': class_name,
+                            'teacher': class_info.get('Teacher', 'Unknown'),
+                            'student_count': class_info.get('student_count', 0),
+                            'requested_slot': conflict['requested_slot'],
+                            'conflict_type': 'manual_assignment_blocked',
+                            'conflicts': {
+                                'student_conflicts': len([c for c in conflict['conflicts'] if 'student conflict' in c]),
+                                'teacher_conflicts': len([c for c in conflict['conflicts'] if 'teacher conflict' in c]),
+                                'room_conflicts': len([c for c in conflict['conflicts'] if 'room conflict' in c]),
+                                'details': conflict['conflicts']
+                            }
+                        }
+                        response_data['scheduling_errors'].append(error_info)
+                        print(f"MANUAL CONFLICT DEBUG: Added manual conflict for {class_name} at {conflict['requested_slot']} (class not auto-scheduled)")
+                    else:
+                        # Class was auto-scheduled - just log that manual assignment failed
+                        print(f"MANUAL CONFLICT DEBUG: Manual assignment failed for {class_name} at {conflict['requested_slot']}, but class was auto-scheduled elsewhere")
+                
+                # Mark as partial schedule if there are manual conflicts that affected scheduling
+                has_unscheduled_conflicts = any(
+                    conflict['class']['Class'] not in scheduled_class_names 
+                    for conflict in manual_conflicts
+                )
+                if has_unscheduled_conflicts:
+                    response_data['partial_schedule'] = True
+                    response_data['has_manual_conflicts'] = True
             
             return jsonify(response_data)
         else:
