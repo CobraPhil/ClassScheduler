@@ -4,6 +4,7 @@ from io import StringIO, BytesIO
 from datetime import datetime
 import uuid
 import os
+import json
 
 # Try to import weasyprint, but don't fail if it's not available
 try:
@@ -60,6 +61,42 @@ PERIODS = {
 
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
 
+# Schedule data storage
+SCHEDULE_DATA_FILE = 'last_schedule.json'
+
+def save_schedule_data():
+    """Save current form data (selected classes and their assignments) to JSON file"""
+    global selected_classes, manual_session_assignments
+    
+    schedule_data = {
+        'selected_classes': selected_classes,
+        'session_assignments': manual_session_assignments,
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0'
+    }
+    
+    try:
+        with open(SCHEDULE_DATA_FILE, 'w', encoding='utf-8') as f:
+            json.dump(schedule_data, f, indent=2, ensure_ascii=False)
+        print(f"Schedule data saved to {SCHEDULE_DATA_FILE}")
+    except Exception as e:
+        print(f"Error saving schedule data: {e}")
+
+def load_schedule_data():
+    """Load saved form data from JSON file"""
+    try:
+        if not os.path.exists(SCHEDULE_DATA_FILE):
+            return None
+            
+        with open(SCHEDULE_DATA_FILE, 'r', encoding='utf-8') as f:
+            schedule_data = json.load(f)
+            
+        print(f"Schedule data loaded from {SCHEDULE_DATA_FILE}")
+        return schedule_data
+    except Exception as e:
+        print(f"Error loading schedule data: {e}")
+        return None
+
 def clean_text_data(text):
     """Clean text data by removing leading/trailing spaces, double spaces, and normalizing"""
     if not text:
@@ -98,7 +135,7 @@ def clean_student_list(student_string):
     return '; '.join(students)
 
 def generate_class_colors(class_names):
-    """Generate distinctive colors for each class using HSL color space with improved distribution"""
+    """Generate two-tone colors for each class - header and body colors for enhanced distinction"""
     import colorsys
     colors = {}
     
@@ -125,30 +162,80 @@ def generate_class_colors(class_names):
         # Convert hue to 0-1 range for colorsys
         h = hue / 360.0
         
-        # Vary saturation more dramatically to increase distinction
-        saturation = 0.70 + (i % 6) * 0.05  # 0.70-0.95 range (broader range)
+        # Generate TWO related colors for two-tone effect
         
-        # Use darker lightness values with more variation
-        lightness = 0.28 + (i % 7) * 0.025  # 0.28-0.43 range (more variation)
+        # Header color (darker, more saturated for class name)
+        header_saturation = 0.75 + (i % 5) * 0.04  # 0.75-0.91 range
+        header_lightness = 0.25 + (i % 6) * 0.02   # 0.25-0.35 range (darker)
         
-        # Convert HSL to RGB
-        r, g, b = colorsys.hls_to_rgb(h, lightness, saturation)
+        # Body color (lighter but still dark enough for white text)
+        body_saturation = 0.65 + (i % 5) * 0.04    # 0.65-0.81 range (less saturated)
+        body_lightness = 0.35 + (i % 6) * 0.02     # 0.35-0.45 range (lighter than header)
         
-        # Convert to hex color
-        hex_color = '#{:02x}{:02x}{:02x}'.format(
-            int(r * 255),
-            int(g * 255), 
-            int(b * 255)
+        # Convert header color
+        r1, g1, b1 = colorsys.hls_to_rgb(h, header_lightness, header_saturation)
+        header_color = '#{:02x}{:02x}{:02x}'.format(
+            int(r1 * 255), int(g1 * 255), int(b1 * 255)
         )
         
-        colors[class_name] = hex_color
+        # Convert body color
+        r2, g2, b2 = colorsys.hls_to_rgb(h, body_lightness, body_saturation)
+        body_color = '#{:02x}{:02x}{:02x}'.format(
+            int(r2 * 255), int(g2 * 255), int(b2 * 255)
+        )
+        
+        # Store both colors
+        colors[class_name] = {
+            'header': header_color,
+            'body': body_color,
+            'primary': header_color  # For backward compatibility
+        }
     
     return colors
 
-def get_class_color(class_name):
+def get_class_color(class_name, color_type='primary'):
     """Get the assigned color for a specific class"""
     global class_colors
-    return class_colors.get(class_name, '#667eea')  # Default color if not found
+    class_color_data = class_colors.get(class_name, {
+        'header': '#667eea',
+        'body': '#8a9bf2', 
+        'primary': '#667eea'
+    })
+    return class_color_data.get(color_type, '#667eea')
+
+def abbreviate_teacher_name(full_name):
+    """Abbreviate teacher first name (e.g., 'Melson, Pat' -> 'Melson, P.')"""
+    if not full_name or ',' not in full_name:
+        return full_name
+    
+    try:
+        # Split by comma and clean up spaces
+        parts = [part.strip() for part in full_name.split(',')]
+        if len(parts) >= 2:
+            last_name = parts[0]
+            first_name = parts[1]
+            
+            # Take first letter of first name and add period
+            if first_name:
+                abbreviated = f"{last_name}, {first_name[0]}."
+                return abbreviated
+    except:
+        # If anything goes wrong, return original name
+        pass
+    
+    return full_name
+
+def abbreviate_room_name(room_name):
+    """Abbreviate room names (e.g., 'Classroom 2' -> 'Room 2')"""
+    if not room_name:
+        return room_name
+    
+    # Replace "Classroom" with "Room" and capitalize "class" to "Class"
+    abbreviated = room_name.replace('Classroom', 'Room')
+    abbreviated = abbreviated.replace('classroom', 'Room')  # Handle lowercase
+    abbreviated = abbreviated.replace('class', 'Class')     # Capitalize "class"
+    
+    return abbreviated
 
 def clean_csv_data(class_info):
     """Clean all relevant fields in a class record"""
@@ -274,7 +361,8 @@ class ClassScheduler:
             'manual_rooms': [],
             'inferred_days': None,
             'preferred_period': None,
-            'preferred_room': None
+            'preferred_room': None,
+            'preferred_day': None
         }
         
         if class_name not in self.manual_session_assignments:
@@ -298,6 +386,24 @@ class ClassScheduler:
                         pattern['manual_rooms'].append(None)
                 pattern['manual_rooms'][session_index] = room
         
+        # Also check period preferences for auto-scheduled sessions
+        if hasattr(self, 'manual_period_preferences') and class_name in self.manual_period_preferences:
+            for session_index, period in self.manual_period_preferences[class_name].items():
+                if session_index >= len(pattern['manual_periods']):
+                    # Extend list if needed
+                    while len(pattern['manual_periods']) <= session_index:
+                        pattern['manual_periods'].append(None)
+                pattern['manual_periods'][session_index] = period
+        
+        # Also check day preferences for auto-scheduled sessions
+        if hasattr(self, 'manual_day_preferences') and class_name in self.manual_day_preferences:
+            for session_index, day in self.manual_day_preferences[class_name].items():
+                if session_index >= len(pattern['manual_days']):
+                    # Extend list if needed
+                    while len(pattern['manual_days']) <= session_index:
+                        pattern['manual_days'].append(None)
+                pattern['manual_days'][session_index] = day
+        
         # Infer preferred period (use most common manual period)
         manual_periods = [p for p in pattern['manual_periods'] if p != 'Open' and p is not None]
         if manual_periods:
@@ -307,6 +413,11 @@ class ClassScheduler:
         manual_rooms = [r for r in pattern['manual_rooms'] if r and r != 'Open']
         if manual_rooms:
             pattern['preferred_room'] = manual_rooms[0]  # Use first manual room
+        
+        # Infer preferred day (use first manual day)
+        manual_days = [d for d in pattern['manual_days'] if d != 'Open' and d is not None]
+        if manual_days:
+            pattern['preferred_day'] = manual_days[0]  # Use first manual day
         
         # Infer day pattern based on frequency and manual days
         manual_days = [d for d in pattern['manual_days'] if d != 'Open' and d is not None]
@@ -729,11 +840,23 @@ class ClassScheduler:
         manually_scheduled_sessions = {}  # class_name -> set of scheduled session indices
         # Track manual room preferences for auto-scheduled sessions
         manual_room_preferences = {}  # class_name -> session_index -> room_name
+        # Track manual period preferences for auto-scheduled sessions
+        manual_period_preferences = {}  # class_name -> session_index -> period_number
+        # Track manual day preferences for auto-scheduled sessions
+        manual_day_preferences = {}  # class_name -> session_index -> day_name
         
-        print(f"MANUAL DEBUG: Processing {len(self.manual_session_assignments)} classes with session assignments")
+        # Filter session assignments to only include selected classes
+        selected_class_names = set(cls['Class'] for cls in self.classes)
+        filtered_session_assignments = {
+            class_name: sessions 
+            for class_name, sessions in self.manual_session_assignments.items()
+            if class_name in selected_class_names
+        }
+        
+        print(f"MANUAL DEBUG: Processing {len(filtered_session_assignments)} classes with session assignments (filtered from {len(self.manual_session_assignments)} total)")
         
         try:
-            for class_name, sessions in self.manual_session_assignments.items():
+            for class_name, sessions in filtered_session_assignments.items():
                 try:
                     # Find the class info
                     class_info = None
@@ -757,14 +880,72 @@ class ClassScheduler:
                             room_value = session.get('room', 'Open')
                             print(f"  Session {session_index}: day='{day_value}', period='{period_value}', room='{room_value}'")
                             
-                            # Check if this is a fully manual assignment (day AND period specified)
-                            if (session.get('day') != 'Open' and 
-                                period_value not in ['Open', '', None] and
-                                str(period_value).isdigit()):
+                            # Check if this is a fully manual assignment (day OR period specified, not both Open)
+                            is_day_specified = session.get('day') not in ['Open', '', None]
+                            is_period_specified = (period_value not in ['Open', '', None] and str(period_value).isdigit())
+                            
+                            if is_day_specified and is_period_specified:
+                                # Both day and period specified - fully manual
+                                pass  # Continue with fully manual logic
+                            elif is_day_specified and period_value in ['Open', '', None]:
+                                # Day specified but period is Open - still fully manual (day constraint)
+                                pass  # Continue with fully manual logic  
+                            elif is_period_specified and session.get('day') == 'Open':
+                                # Period specified but day is Open - still fully manual (period constraint)
+                                pass  # Continue with fully manual logic
+                            else:
+                                # Neither day nor period specified - skip to preferences logic
+                                pass  # Will go to the else block below
+                            
+                            if (is_day_specified or is_period_specified):
                                 
-                                day = session['day']
-                                period = int(session['period'])
-                                room = session.get('room', 'TBD')
+                                # Handle different types of manual assignments
+                                if is_day_specified and is_period_specified:
+                                    # Both specified - full manual assignment
+                                    day = session['day']
+                                    period = int(session['period'])
+                                    room = session.get('room', 'TBD')
+                                elif is_day_specified and period_value in ['Open', '', None]:
+                                    # Day specified, period open - need to find available period on that day
+                                    day = session['day']
+                                    # Find the first available period on this day
+                                    available_periods = [1, 2, 4, 5, 6, 7, 8, 9, 10]  # All possible periods
+                                    period = None
+                                    for test_period in available_periods:
+                                        if not self.schedule[day][test_period]:  # Empty period
+                                            # Check if this class can be scheduled here
+                                            can_schedule, _ = self.can_schedule_class(class_info, [day], test_period, {}, None)
+                                            if can_schedule:
+                                                period = test_period
+                                                break
+                                    
+                                    if period is None:
+                                        print(f"  ERROR: No available period found on {day} for {class_name}")
+                                        continue
+                                    
+                                    room = session.get('room', 'TBD')
+                                elif is_period_specified and session.get('day') == 'Open':
+                                    # Period specified, day open - need to find available day for that period
+                                    period = int(session['period'])
+                                    # Find the first available day for this period
+                                    available_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+                                    day = None
+                                    for test_day in available_days:
+                                        if not self.schedule[test_day][period]:  # Empty slot
+                                            # Check if this class can be scheduled here
+                                            can_schedule, _ = self.can_schedule_class(class_info, [test_day], period, {}, None)
+                                            if can_schedule:
+                                                day = test_day
+                                                break
+                                    
+                                    if day is None:
+                                        print(f"  ERROR: No available day found for Period {period} for {class_name}")
+                                        continue
+                                    
+                                    room = session.get('room', 'TBD')
+                                else:
+                                    print(f"  ERROR: Unexpected manual assignment state for {class_name}")
+                                    continue
                                 
                                 print(f"  FULLY MANUAL: Scheduling session {session_index+1}: {day}, Period {period}, {room}")
                                 
@@ -861,15 +1042,44 @@ class ClassScheduler:
                                 print(f"  TRACKED: Session {session_index} marked as manually scheduled")
                                 
                             else:
+                                # Handle partial constraints (period-only or room-only preferences)
+                                has_preferences = False
+                                
                                 # Check if there's a manual room preference (even if day/period are "Open")
                                 if room_value != 'Open' and room_value != 'TBD':
                                     # Store room preference for auto-scheduling
                                     if class_name not in manual_room_preferences:
                                         manual_room_preferences[class_name] = {}
                                     manual_room_preferences[class_name][session_index] = room_value
-                                    print(f"  ROOM PREF: Session {session_index} prefers {room_value}, will be auto-scheduled")
-                                else:
+                                    print(f"  ROOM PREF: Session {session_index} prefers {room_value}")
+                                    has_preferences = True
+                                
+                                # Check if there's a manual period preference (day="Open" but specific period)
+                                if (day_value == 'Open' and 
+                                    period_value not in ['Open', '', None] and
+                                    str(period_value).isdigit()):
+                                    # Store period preference for auto-scheduling
+                                    if class_name not in manual_period_preferences:
+                                        manual_period_preferences[class_name] = {}
+                                    manual_period_preferences[class_name][session_index] = int(period_value)
+                                    print(f"  PERIOD PREF: Session {session_index} prefers Period {period_value}")
+                                    has_preferences = True
+                                
+                                # Check if there's a manual day preference (period="Open" but specific day)
+                                if (period_value in ['Open', '', None] and 
+                                    day_value not in ['Open', '', None] and
+                                    day_value in DAYS):
+                                    # Store day preference for auto-scheduling
+                                    if class_name not in manual_day_preferences:
+                                        manual_day_preferences[class_name] = {}
+                                    manual_day_preferences[class_name][session_index] = day_value
+                                    print(f"  DAY PREF: Session {session_index} prefers {day_value}")
+                                    has_preferences = True
+                                
+                                if not has_preferences:
                                     print(f"  AUTO: Session {session_index} will be fully auto-scheduled")
+                                else:
+                                    print(f"  CONSTRAINED: Session {session_index} will be auto-scheduled with preferences")
                         except Exception as e:
                             print(f"ERROR processing session {session_index} for {class_name}: {e}")
                             import traceback
@@ -889,8 +1099,12 @@ class ClassScheduler:
         # Store manually scheduled sessions info for use during auto-scheduling
         self.manually_scheduled_sessions = manually_scheduled_sessions
         self.manual_room_preferences = manual_room_preferences
+        self.manual_period_preferences = manual_period_preferences
+        self.manual_day_preferences = manual_day_preferences
         print(f"Manual session scheduling complete. Manual sessions: {manually_scheduled_sessions}")
         print(f"Room preferences captured: {manual_room_preferences}")
+        print(f"Period preferences captured: {manual_period_preferences}")
+        print(f"Day preferences captured: {manual_day_preferences}")
         
         # ALL classes remain in auto-scheduling (they may need additional sessions)
         remaining_classes = self.classes
@@ -949,7 +1163,11 @@ class ClassScheduler:
             print(f"  Manual pattern analysis: {manual_pattern}")
             
             # Get smart day options based on manual pattern
-            if manual_pattern['inferred_days']:
+            if manual_pattern['preferred_day'] and remaining_sessions_needed == 1:
+                # If there's a preferred day and we only need 1 session, use that day specifically
+                day_options = [[manual_pattern['preferred_day']]]
+                print(f"  Using preferred day {manual_pattern['preferred_day']} from manual pattern")
+            elif manual_pattern['inferred_days']:
                 day_options = [manual_pattern['inferred_days']]  # Use inferred pattern as first choice
                 fallback_options = self.get_preferred_days(remaining_sessions_needed)
                 day_options.extend([opt for opt in fallback_options if opt != manual_pattern['inferred_days']])
@@ -1006,8 +1224,8 @@ class ClassScheduler:
                     [1],                # Then Period 1
                     [7] if use_period_7 else []  # Period 7 last resort
                 ]
-                # Remove the preferred period from other groups to avoid duplicates
-                period_groups = [[p for p in group if p != preferred_period] for group in period_groups]
+                # Remove the preferred period from other groups to avoid duplicates (but keep the first group intact)
+                period_groups = [period_groups[0]] + [[p for p in group if p != preferred_period] for group in period_groups[1:]]
                 period_groups = [group for group in period_groups if group]  # Remove empty groups
             else:
                 # Use period priority order based on aggressiveness
@@ -1050,8 +1268,8 @@ class ClassScheduler:
                                 'priority_score': self.get_option_priority_score(period, day_option, frequency)
                             }
                             
-                            # If this is core period or manual assignment, schedule immediately
-                            if period in [2, 4, 5, 6] or has_manual_period:
+                            # If this is core period, manual assignment, or preferred period, schedule immediately
+                            if period in [2, 4, 5, 6] or has_manual_period or manual_pattern['preferred_period'] == period:
                                 self.schedule_class(class_info, day_option, period, assigned_rooms, manual_pattern.get('preferred_room'))
                                 scheduled = True
                                 print(f"Scheduled {class_info['Class']} on {day_option} at Period {period}")
@@ -1322,32 +1540,81 @@ def generate_schedule():
                     room_key = f"{day}_{period}_{class_info['Class']}"
                     room_name = scheduler.room_assignments.get(room_key, 'TBD')
                     
-                    # Add room info and color to class
+                    # Add room info, colors, and abbreviated names to class
                     enhanced_class = class_info.copy()
                     enhanced_class['room'] = room_name
-                    enhanced_class['color'] = get_class_color(class_info['Class'])
+                    enhanced_class['room_abbreviated'] = abbreviate_room_name(room_name)
+                    enhanced_class['teacher_abbreviated'] = abbreviate_teacher_name(class_info.get('Teacher', ''))
+                    enhanced_class['color_header'] = get_class_color(class_info['Class'], 'header')
+                    enhanced_class['color_body'] = get_class_color(class_info['Class'], 'body')
+                    enhanced_class['color'] = get_class_color(class_info['Class'], 'primary')  # For backward compatibility
                     enhanced_schedule[day][period].append(enhanced_class)
         
         # Save the enhanced schedule with room assignments for PDF export
         current_schedule = enhanced_schedule
         
         # Calculate how many classes were actually scheduled
-        scheduled_count = len(classes_to_schedule) - len(unscheduled)
+        # Count unique scheduled classes by checking what's in the actual schedule
+        scheduled_class_names = set()
+        for day in scheduler.schedule:
+            for period in scheduler.schedule[day]:
+                for class_info in scheduler.schedule[day][period]:
+                    scheduled_class_names.add(class_info['Class'])
+        
+        scheduled_count = len(scheduled_class_names)
+        unscheduled_count = len(classes_to_schedule) - scheduled_count
+        
+        print(f"STATS DEBUG: {len(classes_to_schedule)} total classes, {scheduled_count} scheduled classes, {unscheduled_count} unscheduled classes")
+        print(f"STATS DEBUG: Scheduled classes: {sorted(scheduled_class_names)}")
+        if unscheduled:
+            print(f"STATS DEBUG: Unscheduled classes: {[item['class']['Class'] for item in unscheduled]}")
         
         if success or scheduled_count > 0:
-            # Return success if all classes scheduled OR if we scheduled at least some classes
-            return jsonify({
+            response_data = {
                 'success': True,
                 'schedule': enhanced_schedule,
                 'class_colors': class_colors,
                 'stats': {
                     'total_classes': len(classes_to_schedule),
                     'scheduled_classes': scheduled_count,
-                    'unscheduled_classes': len(unscheduled)
+                    'unscheduled_classes': unscheduled_count
                 },
-                'partial_schedule': not success,  # Indicate if this is a partial schedule
-                'unscheduled': unscheduled if not success else []
-            })
+                'partial_schedule': unscheduled_count > 0,  # Indicate if this is a partial schedule
+                'unscheduled': unscheduled
+            }
+            
+            # If there are unscheduled classes, add detailed error information
+            # Use the accurate count instead of relying on the scheduler's unscheduled list
+            if unscheduled_count > 0:
+                print(f"ERROR DEBUG: Found {unscheduled_count} unscheduled classes based on count")
+                response_data['scheduling_errors'] = []
+                
+                # Find which classes are missing by comparing input vs scheduled
+                input_class_names = set(cls['Class'] for cls in classes_to_schedule)
+                missing_class_names = input_class_names - scheduled_class_names
+                
+                print(f"ERROR DEBUG: Missing classes: {missing_class_names}")
+                
+                # Create error info for each missing class
+                for missing_class in missing_class_names:
+                    # Find the class info from the original data
+                    class_info = next((cls for cls in classes_to_schedule if cls['Class'] == missing_class), None)
+                    if class_info:
+                        error_info = {
+                            'class_name': missing_class,
+                            'teacher': class_info.get('Teacher', 'Unknown'),
+                            'student_count': class_info.get('student_count', 0),
+                            'conflicts': {
+                                'student_conflicts': 0,
+                                'teacher_conflicts': 0, 
+                                'room_conflicts': 0,
+                                'details': ['Could not find available time slot without conflicts']
+                            }
+                        }
+                        response_data['scheduling_errors'].append(error_info)
+                        print(f"ERROR DEBUG: Added error info for {missing_class}")
+            
+            return jsonify(response_data)
         else:
             # Only return failure if NO classes could be scheduled
             return jsonify({
@@ -1382,6 +1649,9 @@ def set_selection():
         print(f"Manual session assignments: {manual_session_assignments}")
         print("Current schedule cleared due to selection changes")
         
+        # Save schedule data to local JSON file when selection is confirmed
+        save_schedule_data()
+        
         return jsonify({
             'success': True,
             'selected_count': len(selected_classes)
@@ -1397,6 +1667,47 @@ def get_schedule_status():
     return jsonify({
         'has_schedule': current_schedule is not None
     })
+
+@app.route('/check_saved_schedule')
+def check_saved_schedule():
+    """Check if there's a saved schedule file available"""
+    has_saved = os.path.exists(SCHEDULE_DATA_FILE)
+    return jsonify({
+        'has_saved_schedule': has_saved
+    })
+
+@app.route('/load_saved_schedule', methods=['POST'])
+def load_saved_schedule():
+    """Load the saved schedule data and restore form state"""
+    global selected_classes, manual_session_assignments
+    
+    try:
+        schedule_data = load_schedule_data()
+        if not schedule_data:
+            return jsonify({
+                'success': False,
+                'error': 'No saved schedule found'
+            })
+        
+        # Restore the form data
+        selected_classes = schedule_data.get('selected_classes', [])
+        manual_session_assignments = schedule_data.get('session_assignments', {})
+        
+        print(f"Restored {len(selected_classes)} selected classes")
+        print(f"Restored session assignments for {len(manual_session_assignments)} classes")
+        
+        return jsonify({
+            'success': True,
+            'selected_classes': selected_classes,
+            'session_assignments': manual_session_assignments,
+            'timestamp': schedule_data.get('timestamp', 'Unknown')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
 
 @app.route('/test_pdf')
 def test_pdf():
@@ -1482,6 +1793,13 @@ def export_pdf():
             margin: 1cm;
         }}
         
+        /* Force color printing - preserve background colors when printing */
+        * {{
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }}
+        
         body {{
             font-family: Arial, sans-serif;
             font-size: 10px;
@@ -1560,13 +1878,14 @@ def export_pdf():
         }}
         
         .class-block {{
-            background-color: #667eea; /* Fallback color */
+            background-color: transparent; /* Two-tone styling handled inline */
             color: white;
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.4);
             border-radius: 3px;
             padding: 3px;
             margin-bottom: 2px;
-            font-size: 8px;
+            font-size: 10px; /* Increased from 8px for better readability */
+            overflow: hidden;
         }}
         
         .class-block:last-child {{
@@ -1578,6 +1897,31 @@ def export_pdf():
             color: white;
             margin-bottom: 1px;
             line-height: 1.1;
+            font-size: 11px; /* Explicit size for class titles */
+        }}
+        
+        .period-label {{
+            background-color: #f0f0f0;
+            font-weight: bold;
+            text-align: center;
+            width: 90px;
+            font-size: 10px; /* Increased for better readability */
+            line-height: 1.2;
+            padding: 8px 4px;
+            border: 1px solid #333;
+        }}
+        
+        .period-label small {{
+            font-size: 10px; /* Increased to 10px for better readability */
+            font-weight: normal;
+            color: #666;
+            display: block;
+            margin-top: 2px;
+        }}
+        
+        /* Compressed height for empty periods */
+        .empty-period-row td {{
+            height: 25px !important; /* Much smaller for empty periods */
         }}
         
         .class-teacher {{
@@ -1645,8 +1989,17 @@ def export_pdf():
         # Generate the table body with the schedule data
         days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
         for period_num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+            # Check if this period has any classes
+            period_has_classes = False
+            for day in days:
+                if current_schedule.get(day) and current_schedule[day].get(period_num):
+                    period_has_classes = True
+                    break
+            
+            # Apply empty-period-row class if no classes in this period
+            row_class = ' class="empty-period-row"' if not period_has_classes else ''
             complete_html += f"""
-            <tr>
+            <tr{row_class}>
                 <td class="period-label {'chapel-period' if period_num == 3 else ''}">
                     Period {period_num}<br>
                     <small>"""
@@ -1671,13 +2024,18 @@ def export_pdf():
                 complete_html += "<td>"
                 if current_schedule.get(day) and current_schedule[day].get(period_num):
                     for class_info in current_schedule[day][period_num]:
-                        class_color = class_colors.get(class_info.get('Class', ''), '#667eea')
+                        class_color_data = class_colors.get(class_info.get('Class', ''), {
+                            'header': '#667eea', 
+                            'body': '#8a9bf2'
+                        })
+                        teacher_name = class_info.get('teacher_abbreviated', class_info.get('Teacher', ''))
+                        room_name = class_info.get('room_abbreviated', class_info.get('room', 'TBD'))
                         complete_html += f"""
-                        <div class="class-block" style="background-color: {class_color};">
-                            <div class="class-title">{class_info.get('Class', '')}</div>
-                            <div class="class-teacher">{class_info.get('Teacher', '')}</div>
-                            <div class="class-room">{class_info.get('room', 'TBD')}</div>
-                            <div class="class-students">{class_info.get('student_count', 0)} students</div>
+                        <div class="class-block">
+                            <div class="class-title" style="background-color: {class_color_data['header']}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">{class_info.get('Class', '')}</div>
+                            <div class="class-body" style="background-color: {class_color_data['body']}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;">
+                                <div class="class-details" style="color: white;"><strong>{teacher_name}</strong> • {room_name} • {class_info.get('student_count', 0)} students</div>
+                            </div>
                         </div>"""
                 complete_html += "</td>"
             

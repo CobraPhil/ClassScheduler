@@ -9,6 +9,13 @@
             margin: 1cm;
         }
         
+        /* Force color printing - preserve background colors when printing */
+        * {
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+        }
+        
         body {
             font-family: Arial, sans-serif;
             font-size: 10px;
@@ -55,8 +62,13 @@
             border: 1px solid #333;
             padding: 4px;
             vertical-align: top;
-            height: 80px;
+            height: 45px; /* Default height for periods with classes */
             width: 16.66%;
+        }
+        
+        /* Compressed height for empty periods */
+        .empty-period-row td {
+            height: 25px; /* Much smaller for empty periods */
         }
         
         /* Page break after Period 5 */
@@ -82,13 +94,13 @@
             background-color: #f0f0f0;
             font-weight: bold;
             text-align: center;
-            width: 80px;
-            font-size: 9px;
+            width: 90px; /* Increased from 80px for better spacing */
+            font-size: 10px; /* Increased from 9px for better readability */
             line-height: 1.2;
         }
         
         .period-label small {
-            font-size: 7px;
+            font-size: 10px; /* Increased to 10px for better readability */
             font-weight: normal;
             color: #666;
             display: block;
@@ -96,13 +108,14 @@
         }
         
         .class-block {
-            background-color: #667eea; /* Fallback color */
+            background-color: transparent; /* Two-tone styling handled inline */
             color: white;
-            border: 1px solid rgba(255,255,255,0.3);
+            border: 1px solid rgba(255,255,255,0.4);
             border-radius: 3px;
             padding: 3px;
             margin-bottom: 2px;
-            font-size: 8px;
+            font-size: 10px; /* Increased from 8px for better readability */
+            overflow: hidden;
         }
         
         .class-block:last-child {
@@ -114,6 +127,7 @@
             color: white;
             margin-bottom: 1px;
             line-height: 1.1;
+            font-size: 11px; /* Explicit size for class titles */
         }
         
         .class-teacher {
@@ -190,7 +204,14 @@
             {% set needs_compact_period_3 = (total_classes_1_2 + total_classes_4_5) > 15 %}
             
             {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] %}
-            <tr {% if period_num == 3 and needs_compact_period_3 %}class="period-3-compact"{% elif period_num == 5 %}class="page-break-after-5"{% endif %}>
+            {% set period_has_classes = [] %}
+            {% for day in days %}
+                {% if schedule[day] and schedule[day][period_num] %}
+                    {% set _ = period_has_classes.append(1) %}
+                {% endif %}
+            {% endfor %}
+            {% set is_empty_period = period_has_classes|length == 0 %}
+            <tr {% if is_empty_period %}class="empty-period-row"{% elif period_num == 3 and needs_compact_period_3 %}class="period-3-compact"{% elif period_num == 5 %}class="page-break-after-5"{% endif %}>
                 <td class="period-label {% if period_num == 3 %}chapel-period{% endif %}">
                     Period {{ period_num }}<br>
                     <small>
@@ -211,11 +232,12 @@
                 <td>
                     {% if schedule[day] and schedule[day][period_num] %}
                         {% for class_info in schedule[day][period_num] %}
-                        <div class="class-block" style="background-color: {{ class_colors.get(class_info['Class'], '#667eea') }};">
-                            <div class="class-title">{{ class_info['Class'] }}</div>
-                            <div class="class-teacher">{{ class_info['Teacher'] }}</div>
-                            <div class="class-room">{{ class_info.get('room', 'TBD') }}</div>
-                            <div class="class-students">{{ class_info.get('student_count', 0) }} students</div>
+                        {% set class_color_data = class_colors.get(class_info['Class'], {'header': '#667eea', 'body': '#8a9bf2'}) %}
+                        <div class="class-block">
+                            <div class="class-title" style="background-color: {{ class_color_data.header }}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">{{ class_info['Class'] }}</div>
+                            <div class="class-body" style="background-color: {{ class_color_data.body }}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;">
+                                <div class="class-details" style="color: white;"><strong>{{ class_info.get('teacher_abbreviated', class_info['Teacher']) }}</strong> • {{ class_info.get('room_abbreviated', class_info.get('room', 'TBD')) }} • {{ class_info.get('student_count', 0) }} students</div>
+                            </div>
                         </div>
                         {% endfor %}
                     {% endif %}

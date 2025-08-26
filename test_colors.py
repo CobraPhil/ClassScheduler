@@ -6,7 +6,7 @@ Simple test script to verify the class color generation functionality.
 import colorsys
 
 def generate_class_colors(class_names):
-    """Generate distinctive colors for each class using HSL color space with improved distribution"""
+    """Generate two-tone colors for each class - header and body colors for enhanced distinction"""
     colors = {}
     
     if not class_names:
@@ -32,23 +32,34 @@ def generate_class_colors(class_names):
         # Convert hue to 0-1 range for colorsys
         h = hue / 360.0
         
-        # Vary saturation more dramatically to increase distinction
-        saturation = 0.70 + (i % 6) * 0.05  # 0.70-0.95 range (broader range)
+        # Generate TWO related colors for two-tone effect
         
-        # Use darker lightness values with more variation
-        lightness = 0.28 + (i % 7) * 0.025  # 0.28-0.43 range (more variation)
+        # Header color (darker, more saturated for class name)
+        header_saturation = 0.75 + (i % 5) * 0.04  # 0.75-0.91 range
+        header_lightness = 0.25 + (i % 6) * 0.02   # 0.25-0.35 range (darker)
         
-        # Convert HSL to RGB
-        r, g, b = colorsys.hls_to_rgb(h, lightness, saturation)
+        # Body color (lighter but still dark enough for white text)
+        body_saturation = 0.65 + (i % 5) * 0.04    # 0.65-0.81 range (less saturated)
+        body_lightness = 0.35 + (i % 6) * 0.02     # 0.35-0.45 range (lighter than header)
         
-        # Convert to hex color
-        hex_color = '#{:02x}{:02x}{:02x}'.format(
-            int(r * 255),
-            int(g * 255), 
-            int(b * 255)
+        # Convert header color
+        r1, g1, b1 = colorsys.hls_to_rgb(h, header_lightness, header_saturation)
+        header_color = '#{:02x}{:02x}{:02x}'.format(
+            int(r1 * 255), int(g1 * 255), int(b1 * 255)
         )
         
-        colors[class_name] = hex_color
+        # Convert body color
+        r2, g2, b2 = colorsys.hls_to_rgb(h, body_lightness, body_saturation)
+        body_color = '#{:02x}{:02x}{:02x}'.format(
+            int(r2 * 255), int(g2 * 255), int(b2 * 255)
+        )
+        
+        # Store both colors
+        colors[class_name] = {
+            'header': header_color,
+            'body': body_color,
+            'primary': header_color  # For backward compatibility
+        }
     
     return colors
 
@@ -63,8 +74,8 @@ def test_color_generation():
     colors_small = generate_class_colors(small_classes)
     
     print(f"\nSmall class list ({len(small_classes)} classes):")
-    for class_name, color in colors_small.items():
-        print(f"  {class_name:<15} -> {color}")
+    for class_name, color_data in colors_small.items():
+        print(f"  {class_name:<15} -> Header: {color_data['header']} | Body: {color_data['body']}")
     
     # Test with larger number of classes (simulating the 25 class scenario)
     large_classes = [
@@ -76,9 +87,9 @@ def test_color_generation():
     ]
     colors_large = generate_class_colors(large_classes)
     
-    print(f"\nLarge class list ({len(large_classes)} classes):")
-    for class_name, color in colors_large.items():
-        print(f"  {class_name:<15} -> {color}")
+    print(f"\nLarge class list ({len(large_classes)} classes) - Two-Tone Colors:")
+    for class_name, color_data in colors_large.items():
+        print(f"  {class_name:<15} -> Header: {color_data['header']} | Body: {color_data['body']}")
     
     # Test color consistency (same input should produce same colors)
     colors_test1 = generate_class_colors(['Class A', 'Class B', 'Class C'])

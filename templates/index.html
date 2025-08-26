@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GBBC Class Schedule Generator</title>
     <style>
+        /* Force color printing - preserve background colors when printing */
+        @media print {
+            * {
+                print-color-adjust: exact !important;
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+            }
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
@@ -13,7 +22,7 @@
             line-height: 1.6;
         }
         .container {
-            max-width: 1200px;
+            max-width: 1600px; /* Increased from 1200px for wider layout */
             margin: 0 auto;
             background: white;
             border-radius: 10px;
@@ -218,7 +227,7 @@
         }
         .schedule-header {
             display: grid;
-            grid-template-columns: 100px repeat(5, 1fr);
+            grid-template-columns: 120px repeat(5, 1fr); /* Increased period column from 100px to 120px */
             background: #667eea;
             color: white;
             font-weight: bold;
@@ -230,7 +239,7 @@
         }
         .schedule-row {
             display: grid;
-            grid-template-columns: 100px repeat(5, 1fr);
+            grid-template-columns: 120px repeat(5, 1fr); /* Increased period column from 100px to 120px */
             border-bottom: 1px solid #dee2e6;
         }
         .schedule-row:nth-child(even) {
@@ -252,18 +261,19 @@
             margin-top: 2px;
         }
         .schedule-cell {
-            padding: 10px;
+            padding: 8px;
             border-right: 1px solid #dee2e6;
-            min-height: 60px;
+            min-height: 50px; /* Reduced from 80px to 50px for compact display */
         }
         .class-block {
-            background: #667eea; /* Fallback color, will be overridden by JavaScript */
+            background: transparent; /* Two-tone styling handled by JavaScript */
             color: white;
-            padding: 8px;
+            padding: 6px; /* Reduced from 8px for more compact layout */
             border-radius: 5px;
-            margin-bottom: 5px;
+            margin-bottom: 4px; /* Reduced from 5px */
             font-size: 12px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            overflow: hidden;
         }
         .class-block:last-child {
             margin-bottom: 0;
@@ -271,6 +281,9 @@
         .class-title {
             font-weight: bold;
             margin-bottom: 2px;
+            white-space: nowrap; /* Prevent class names from wrapping */
+            overflow: hidden;
+            text-overflow: ellipsis; /* Add ... if text is too long */
         }
         .class-teacher {
             opacity: 0.9;
@@ -926,15 +939,36 @@
                             // Use room information from backend
                             const roomName = classInfo.room || 'TBD';
                             
-                            // Apply class-specific color
-                            const classColor = classColors[classInfo.Class] || '#667eea';
-                            classBlock.style.backgroundColor = classColor;
+                            // Apply two-tone color styling
+                            const classColorData = classColors[classInfo.Class] || {
+                                header: '#667eea',
+                                body: '#8a9bf2'
+                            };
+                            
+                            // Use abbreviated teacher name if available, otherwise abbreviate on frontend
+                            let teacherName = classInfo.teacher_abbreviated || classInfo.Teacher;
+                            if (!classInfo.teacher_abbreviated && classInfo.Teacher && classInfo.Teacher.includes(',')) {
+                                const parts = classInfo.Teacher.split(',');
+                                if (parts.length >= 2) {
+                                    const lastName = parts[0].trim();
+                                    const firstName = parts[1].trim();
+                                    if (firstName) {
+                                        teacherName = `${lastName}, ${firstName[0]}.`;
+                                    }
+                                }
+                            }
+                            
+                            // Use abbreviated room name if available, otherwise abbreviate on frontend
+                            let roomNameAbbrev = classInfo.room_abbreviated || roomName;
+                            if (!classInfo.room_abbreviated && roomName) {
+                                roomNameAbbrev = roomName.replace('Classroom', 'Room').replace('classroom', 'Room').replace('class', 'Class');
+                            }
                             
                             classBlock.innerHTML = `
-                                <div class="class-title">${classInfo.Class}</div>
-                                <div class="class-teacher">${classInfo.Teacher}</div>
-                                <div class="class-room">${roomName}</div>
-                                <div class="class-students">${classInfo.student_count || 0} students</div>
+                                <div class="class-title" style="background-color: ${classColorData.header}; padding: 3px 6px; margin: -6px -6px 0 -6px; border-radius: 5px 5px 0 0; color: white;" title="${classInfo.Class}">${classInfo.Class}</div>
+                                <div class="class-body" style="background-color: ${classColorData.body}; padding: 3px 6px; margin: 0 -6px -6px -6px; border-radius: 0 0 5px 5px; font-size: 10px; line-height: 1.2; color: white;">
+                                    <div class="class-details" style="color: white;"><strong>${teacherName}</strong> • ${roomNameAbbrev} • ${classInfo.student_count || 0} students</div>
+                                </div>
                             `;
                             cell.appendChild(classBlock);
                         });
