@@ -96,8 +96,9 @@
         }
         
         .class-block {
-            background-color: #e8f0fe;
-            border: 1px solid #667eea;
+            background-color: #667eea; /* Fallback color */
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
             border-radius: 3px;
             padding: 3px;
             margin-bottom: 2px;
@@ -110,25 +111,25 @@
         
         .class-title {
             font-weight: bold;
-            color: #333;
+            color: white;
             margin-bottom: 1px;
             line-height: 1.1;
         }
         
         .class-teacher {
-            color: #666;
+            color: rgba(255,255,255,0.9);
             font-size: 7px;
             line-height: 1.1;
         }
         
         .class-room {
-            color: #999;
+            color: rgba(255,255,255,0.8);
             font-size: 7px;
             font-style: italic;
         }
         
         .class-students {
-            color: #333;
+            color: rgba(255,255,255,0.9);
             font-size: 6px;
             margin-top: 1px;
             font-weight: 500;
@@ -210,7 +211,7 @@
                 <td>
                     {% if schedule[day] and schedule[day][period_num] %}
                         {% for class_info in schedule[day][period_num] %}
-                        <div class="class-block">
+                        <div class="class-block" style="background-color: {{ class_colors.get(class_info['Class'], '#667eea') }};">
                             <div class="class-title">{{ class_info['Class'] }}</div>
                             <div class="class-teacher">{{ class_info['Teacher'] }}</div>
                             <div class="class-room">{{ class_info.get('room', 'TBD') }}</div>

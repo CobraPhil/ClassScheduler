@@ -257,12 +257,13 @@
             min-height: 60px;
         }
         .class-block {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #667eea; /* Fallback color, will be overridden by JavaScript */
             color: white;
             padding: 8px;
             border-radius: 5px;
             margin-bottom: 5px;
             font-size: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
         }
         .class-block:last-child {
             margin-bottom: 0;
@@ -463,6 +464,7 @@
         let selectedClassNames = new Set();
         let currentSchedule = null;
         let classSessionAssignments = {}; // Track manual session assignments (day, period, room per session)
+        let classColors = {}; // Track color assignments for each class
         
         function showTab(tabName) {
             document.querySelectorAll('.tab-content').forEach(tab => {
@@ -832,6 +834,8 @@
                 const result = await response.json();
                 
                 if (result.success) {
+                    // Store class colors for use throughout the interface
+                    classColors = result.class_colors || {};
                     displaySchedule(result.schedule, result.stats);
                     showAlert('Schedule generated successfully!', 'success');
                     exportBtn.style.display = 'inline-block';
@@ -921,6 +925,10 @@
                             
                             // Use room information from backend
                             const roomName = classInfo.room || 'TBD';
+                            
+                            // Apply class-specific color
+                            const classColor = classColors[classInfo.Class] || '#667eea';
+                            classBlock.style.backgroundColor = classColor;
                             
                             classBlock.innerHTML = `
                                 <div class="class-title">${classInfo.Class}</div>

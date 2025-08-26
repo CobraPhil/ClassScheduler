@@ -32,6 +32,7 @@ current_schedule = None
 manual_room_assignments = {}  # Track manual room assignments (legacy)
 manual_period_assignments = {}  # Track manual period assignments (legacy)
 manual_session_assignments = {}  # Track individual session assignments (day, period, room per session)
+class_colors = {}  # Track color assignments for each class
 
 # Room definitions
 ROOMS = {
@@ -95,6 +96,59 @@ def clean_student_list(student_string):
             students.append(cleaned_student)
     
     return '; '.join(students)
+
+def generate_class_colors(class_names):
+    """Generate distinctive colors for each class using HSL color space with improved distribution"""
+    import colorsys
+    colors = {}
+    
+    if not class_names:
+        return colors
+    
+    num_classes = len(class_names)
+    
+    # Sort class names for consistent color assignment
+    sorted_classes = sorted(class_names)
+    
+    # Use golden ratio for better color distribution (avoids clustering)
+    golden_ratio = 0.618033988749
+    
+    for i, class_name in enumerate(sorted_classes):
+        # Use golden ratio to distribute hues more evenly across spectrum
+        # This prevents similar colors from clustering together
+        hue = (i * golden_ratio * 360.0) % 360
+        
+        # Add cyclic variations based on position to ensure diversity
+        cycle_variation = (i % 7) * 8  # 0, 8, 16, 24, 32, 40, 48 degree shifts
+        hue = (hue + cycle_variation) % 360
+        
+        # Convert hue to 0-1 range for colorsys
+        h = hue / 360.0
+        
+        # Vary saturation more dramatically to increase distinction
+        saturation = 0.70 + (i % 6) * 0.05  # 0.70-0.95 range (broader range)
+        
+        # Use darker lightness values with more variation
+        lightness = 0.28 + (i % 7) * 0.025  # 0.28-0.43 range (more variation)
+        
+        # Convert HSL to RGB
+        r, g, b = colorsys.hls_to_rgb(h, lightness, saturation)
+        
+        # Convert to hex color
+        hex_color = '#{:02x}{:02x}{:02x}'.format(
+            int(r * 255),
+            int(g * 255), 
+            int(b * 255)
+        )
+        
+        colors[class_name] = hex_color
+    
+    return colors
+
+def get_class_color(class_name):
+    """Get the assigned color for a specific class"""
+    global class_colors
+    return class_colors.get(class_name, '#667eea')  # Default color if not found
 
 def clean_csv_data(class_info):
     """Clean all relevant fields in a class record"""
@@ -1206,7 +1260,7 @@ def upload_csv():
 
 @app.route('/generate_schedule', methods=['POST'])
 def generate_schedule():
-    global current_schedule, selected_classes, manual_room_assignments, manual_period_assignments, manual_session_assignments
+    global current_schedule, selected_classes, manual_room_assignments, manual_period_assignments, manual_session_assignments, class_colors
     
     try:
         data = request.get_json() or {}
@@ -1230,6 +1284,11 @@ def generate_schedule():
         if not classes_to_schedule:
             print("SCHEDULE DEBUG: Selected classes not found in data")
             return jsonify({'success': False, 'error': 'Selected classes not found in data'})
+        
+        # Generate colors for all selected classes
+        class_names = [cls['Class'] for cls in classes_to_schedule]
+        class_colors = generate_class_colors(class_names)
+        print(f"Generated colors for {len(class_colors)} classes")
         
         print(f"Manual room assignments: {manual_room_assignments}")
         print(f"Manual period assignments: {manual_period_assignments}")
@@ -1263,9 +1322,10 @@ def generate_schedule():
                     room_key = f"{day}_{period}_{class_info['Class']}"
                     room_name = scheduler.room_assignments.get(room_key, 'TBD')
                     
-                    # Add room info to class
+                    # Add room info and color to class
                     enhanced_class = class_info.copy()
                     enhanced_class['room'] = room_name
+                    enhanced_class['color'] = get_class_color(class_info['Class'])
                     enhanced_schedule[day][period].append(enhanced_class)
         
         # Save the enhanced schedule with room assignments for PDF export
@@ -1279,6 +1339,7 @@ def generate_schedule():
             return jsonify({
                 'success': True,
                 'schedule': enhanced_schedule,
+                'class_colors': class_colors,
                 'stats': {
                     'total_classes': len(classes_to_schedule),
                     'scheduled_classes': scheduled_count,
@@ -1374,6 +1435,7 @@ def export_pdf():
                                      periods=PERIODS, 
                                      days=DAYS,
                                      rooms=ROOMS,
+                                     class_colors=class_colors,
                                      datetime=datetime)
         
         print(f"HTML content length: {len(html_content)}")  # Debug
@@ -1498,8 +1560,9 @@ def export_pdf():
         }}
         
         .class-block {{
-            background-color: #e8f0fe;
-            border: 1px solid #667eea;
+            background-color: #667eea; /* Fallback color */
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
             border-radius: 3px;
             padding: 3px;
             margin-bottom: 2px;
@@ -1512,25 +1575,25 @@ def export_pdf():
         
         .class-title {{
             font-weight: bold;
-            color: #333;
+            color: white;
             margin-bottom: 1px;
             line-height: 1.1;
         }}
         
         .class-teacher {{
-            color: #666;
+            color: rgba(255,255,255,0.9);
             font-size: 7px;
             line-height: 1.1;
         }}
         
         .class-room {{
-            color: #999;
+            color: rgba(255,255,255,0.8);
             font-size: 7px;
             font-style: italic;
         }}
         
         .class-students {{
-            color: #333;
+            color: rgba(255,255,255,0.9);
             font-size: 6px;
             margin-top: 1px;
             font-weight: 500;
@@ -1608,8 +1671,9 @@ def export_pdf():
                 complete_html += "<td>"
                 if current_schedule.get(day) and current_schedule[day].get(period_num):
                     for class_info in current_schedule[day][period_num]:
+                        class_color = class_colors.get(class_info.get('Class', ''), '#667eea')
                         complete_html += f"""
-                        <div class="class-block">
+                        <div class="class-block" style="background-color: {class_color};">
                             <div class="class-title">{class_info.get('Class', '')}</div>
                             <div class="class-teacher">{class_info.get('Teacher', '')}</div>
                             <div class="class-room">{class_info.get('room', 'TBD')}</div>

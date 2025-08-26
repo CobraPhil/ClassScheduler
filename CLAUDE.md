@@ -34,6 +34,7 @@ A comprehensive web-based class scheduling system for theological seminary that 
 - **Smart Session Management**: Credit-based session generation (4/8/12 credit = 1/2/3 sessions)
 - **Statistics Dashboard**: Live counts and scheduling metrics
 - **Hybrid Manual/Auto Scheduling**: Mix manual assignments with automatic optimization
+- **Dynamic Class Colors**: Each class assigned unique, distinctive colors for easy visual identification
 
 ### Multi-Session Class Management
 - **Session-Based Architecture**: Each class broken into individual sessions based on credit hours
@@ -68,6 +69,15 @@ A comprehensive web-based class scheduling system for theological seminary that 
 - **Dynamic Period Times**: All period times clearly labeled including evening periods
 - **Smart Page Layout**: Period 3 compression and intelligent page breaks
 - **Session Integration**: Shows all assigned sessions with proper room assignments
+- **Color-Coded Classes**: Each class displays in its unique assigned color for easy identification
+
+### Dynamic Class Color System
+- **Smart Color Generation**: Uses HSL color space for optimal visual distribution across 25+ classes
+- **Consistent Assignment**: Each class maintains the same color across all days, periods, and sessions
+- **White Text Optimization**: All colors use darker tones (30-42% lightness) ensuring excellent contrast with white text
+- **Gradual Progression**: Subtle hue variations prevent adjacent colors from being too similar
+- **Full System Integration**: Colors appear in web interface, PDF exports, and HTML fallback documents
+- **Automatic Scaling**: Algorithm adapts seamlessly from small (4 classes) to large (25+ classes) course loads
 
 ## Classroom Configuration
 Available classrooms and their constraints:
@@ -178,6 +188,8 @@ Available time periods Monday through Friday:
 - **Room Preference Application**: `apply_room_preferences()` method for post-scheduling room assignment
 - **Enhanced Conflict Detection**: Session-aware conflict checking with detailed logging
 - **Partial Schedule Support**: Improved success criteria for better user experience
+- **Color Generation System**: `generate_class_colors()` function using HSL color space for optimal distribution
+- **Color Persistence**: Global `class_colors` dictionary maintains color assignments throughout session
 
 ### Frontend Architecture (templates/index.html)
 - **Dynamic Session Generation**: JavaScript creates appropriate number of session dropdowns with time-enhanced period options
@@ -185,11 +197,14 @@ Available time periods Monday through Friday:
 - **Credit-Based UI Logic**: Automatic session count determination from credit hours
 - **Compact Session Layout**: CSS grid system for clean multi-session display
 - **Session State Management**: `classSessionAssignments` object tracks all session configurations
+- **Dynamic Color Application**: JavaScript applies class colors from backend response to schedule blocks
+- **Color State Management**: `classColors` object maintains color mappings throughout interface
 
 ### API Enhancements
 - **Enhanced /set_selection**: Accepts `session_assignments` data structure
-- **Improved /generate_schedule**: Returns partial schedules with detailed statistics
+- **Improved /generate_schedule**: Returns partial schedules with detailed statistics and class colors
 - **Session-Aware Data Flow**: Complete integration of session data throughout request lifecycle
+- **Color-Enhanced Responses**: All schedule data includes color information for frontend rendering
 
 ## Data Quality & Error Handling Features
 - **Automatic CSV Cleaning** - Removes extra spaces, normalizes formatting during import
@@ -234,6 +249,7 @@ Available time periods Monday through Friday:
 - **Comprehensive Error Handling** - Detailed logging and graceful error recovery
 - **Advanced Conflict Resolution** - Session-aware conflict detection and reporting
 - **Academic Pattern Intelligence** - Automatic completion of standard scheduling patterns
+- **Dynamic Class Colors** - HSL-based color generation system for visual class identification (NEW)
 
 ## Development Notes
 - **Experiment Branch Active** - Latest features developed in `experiment` branch for testing
