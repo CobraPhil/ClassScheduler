@@ -429,24 +429,44 @@ class ClassScheduler:
         manual_days = [d for d in pattern['manual_days'] if d != 'Open' and d is not None]
         if manual_days and total_frequency > len(manual_days):
             if total_frequency == 2:
-                # 8-credit class - infer T/Th or M/W pattern
+                # 8-credit class - infer the REMAINING day needed, not the full pattern
                 if 'Monday' in manual_days:
-                    pattern['inferred_days'] = ['Monday', 'Wednesday']
+                    pattern['inferred_days'] = ['Wednesday']  # Only the remaining day needed
                 elif 'Tuesday' in manual_days:
-                    pattern['inferred_days'] = ['Tuesday', 'Thursday']  
+                    pattern['inferred_days'] = ['Thursday']   # Only the remaining day needed
                 elif 'Wednesday' in manual_days:
-                    pattern['inferred_days'] = ['Monday', 'Wednesday']
+                    pattern['inferred_days'] = ['Monday']     # Only the remaining day needed
                 elif 'Thursday' in manual_days:
-                    pattern['inferred_days'] = ['Tuesday', 'Thursday']
+                    pattern['inferred_days'] = ['Tuesday']    # Only the remaining day needed
                 elif 'Friday' in manual_days:
-                    pattern['inferred_days'] = ['Monday', 'Friday']
+                    pattern['inferred_days'] = ['Monday']     # Only the remaining day needed
             elif total_frequency == 3:
-                # 12-credit class - infer M/W/F pattern
-                if any(day in manual_days for day in ['Monday', 'Wednesday', 'Friday']):
-                    pattern['inferred_days'] = ['Monday', 'Wednesday', 'Friday']
-                else:
-                    # Fallback to T/W/Th if manual day is Tuesday/Thursday
-                    pattern['inferred_days'] = ['Tuesday', 'Wednesday', 'Thursday']
+                # 12-credit class - infer the REMAINING days needed, not the full pattern
+                used_days = set(manual_days)
+                if len(used_days) == 1:
+                    # One day used, need two more
+                    if 'Monday' in used_days:
+                        pattern['inferred_days'] = ['Wednesday', 'Friday']  # Complete M/W/F
+                    elif 'Wednesday' in used_days:
+                        pattern['inferred_days'] = ['Monday', 'Friday']     # Complete M/W/F
+                    elif 'Friday' in used_days:
+                        pattern['inferred_days'] = ['Monday', 'Wednesday']  # Complete M/W/F
+                    elif 'Tuesday' in used_days:
+                        pattern['inferred_days'] = ['Wednesday', 'Thursday'] # Complete T/W/Th
+                    elif 'Thursday' in used_days:
+                        pattern['inferred_days'] = ['Tuesday', 'Wednesday']  # Complete T/W/Th
+                elif len(used_days) == 2:
+                    # Two days used, need one more
+                    mwf_days = {'Monday', 'Wednesday', 'Friday'}
+                    twth_days = {'Tuesday', 'Wednesday', 'Thursday'}
+                    if used_days.issubset(mwf_days):
+                        pattern['inferred_days'] = list(mwf_days - used_days)     # Complete M/W/F
+                    elif used_days.issubset(twth_days):
+                        pattern['inferred_days'] = list(twth_days - used_days)    # Complete T/W/Th
+                    else:
+                        # Mixed pattern - just pick any remaining day
+                        all_days = {'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'}
+                        pattern['inferred_days'] = list(all_days - used_days)[:1]  # Just one more day
         
         return pattern
     
@@ -1192,11 +1212,8 @@ class ClassScheduler:
             print(f"  Manual pattern analysis: {manual_pattern}")
             
             # Get smart day options based on manual pattern
-            if manual_pattern['preferred_day'] and remaining_sessions_needed == 1:
-                # If there's a preferred day and we only need 1 session, use that day specifically
-                day_options = [[manual_pattern['preferred_day']]]
-                print(f"  Using preferred day {manual_pattern['preferred_day']} from manual pattern")
-            elif manual_pattern['inferred_days']:
+            if manual_pattern['inferred_days']:
+                # Use inferred pattern (which excludes manually used days) as first choice
                 day_options = [manual_pattern['inferred_days']]  # Use inferred pattern as first choice
                 fallback_options = self.get_preferred_days(remaining_sessions_needed)
                 day_options.extend([opt for opt in fallback_options if opt != manual_pattern['inferred_days']])
