@@ -131,7 +131,7 @@
             background: #dc3545;
         }
         .btn-warning {
-            background: #ffc107;
+            background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
             color: #333;
         }
         .log {
@@ -377,6 +377,42 @@
             margin: 10px 0;
             padding-left: 20px;
         }
+        .error-item {
+            display: flex;
+            align-items: flex-start;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 4px solid;
+        }
+        .error-item.critical {
+            background-color: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .error-item.warning {
+            background-color: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        .error-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+        }
+        .error-indicator.critical {
+            background-color: #dc3545;
+        }
+        .error-indicator.warning {
+            background-color: #ffc107;
+        }
     </style>
 </head>
 <body>
@@ -427,6 +463,7 @@
             <div style="margin: 20px 0;">
                 <button class="btn btn-secondary" onclick="selectAll()">Select All</button>
                 <button class="btn btn-secondary" onclick="selectNone()">Select None</button>
+                <button class="btn btn-warning" onclick="importLastSchedule()" id="importBtn" style="display: none;">Import Last Schedule</button>
                 <button class="btn" onclick="confirmSelection()" id="confirmBtn" disabled>Confirm Selection</button>
             </div>
             
@@ -453,6 +490,18 @@
                     <li>Review the conflict details below</li>
                 </ul>
                 <div id="conflictDetails" class="conflict-list"></div>
+            </div>
+            
+            <div id="schedulingErrors" class="conflict-info" style="display: none;">
+                <h4>🔴 Critical Scheduling Issues</h4>
+                <p>The following classes could not be scheduled at all due to conflicts:</p>
+                <div id="errorDetails" class="conflict-list"></div>
+            </div>
+            
+            <div id="manualWarnings" class="conflict-info" style="display: none;">
+                <h4>🟡 Manual Assignment Conflicts</h4>
+                <p>The following classes were scheduled successfully but not at your manually specified settings:</p>
+                <div id="warningDetails" class="conflict-list"></div>
             </div>
             
             <div id="scheduleStats" class="stats-grid" style="display: none;"></div>
@@ -624,11 +673,33 @@
             document.getElementById('uploadBtn').disabled = false;
         }
         
+        async function checkSavedSchedule() {
+            // Check if there's a saved schedule and show/hide import button
+            try {
+                const response = await fetch('/check_saved_schedule');
+                if (response.ok) {
+                    const data = await response.json();
+                    const importBtn = document.getElementById('importBtn');
+                    if (data.has_saved_schedule) {
+                        importBtn.style.display = 'inline-block';
+                    } else {
+                        importBtn.style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.log('Could not check saved schedule:', error);
+                document.getElementById('importBtn').style.display = 'none';
+            }
+        }
+        
         function populateClassList() {
             const classList = document.getElementById('classList');
             classList.innerHTML = '';
             
             selectedClassNames.clear();
+            
+            // Check for saved schedule when populating class list
+            checkSavedSchedule();
             
             currentClasses.forEach((cls, index) => {
                 const item = document.createElement('div');
@@ -680,16 +751,17 @@
                                 <option value="Friday" ${currentSession.day === 'Friday' ? 'selected' : ''}>Friday</option>
                             </select>
                             <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'period', this.value)">
-                                <option value="Open" ${currentSession.period === 'Open' ? 'selected' : ''}>Open</option>
-                                <option value="1" ${currentSession.period === '1' ? 'selected' : ''}>Period 1 (7:00am-7:50am)</option>
-                                <option value="2" ${currentSession.period === '2' ? 'selected' : ''}>Period 2 (8:00am-8:50am)</option>
-                                <option value="4" ${currentSession.period === '4' ? 'selected' : ''}>Period 4 (9:40am-10:30am)</option>
-                                <option value="5" ${currentSession.period === '5' ? 'selected' : ''}>Period 5 (10:40am-11:30am)</option>
-                                <option value="6" ${currentSession.period === '6' ? 'selected' : ''}>Period 6 (11:40am-12:30pm)</option>
-                                <option value="7" ${currentSession.period === '7' ? 'selected' : ''}>Period 7 (12:40pm-1:30pm)</option>
-                                <option value="8" ${currentSession.period === '8' ? 'selected' : ''}>Period 8 (5:30pm-6:20pm)</option>
-                                <option value="9" ${currentSession.period === '9' ? 'selected' : ''}>Period 9 (6:30pm-7:20pm)</option>
-                                <option value="10" ${currentSession.period === '10' ? 'selected' : ''}>Period 10 (7:30pm-8:20pm)</option>
+                                <option value="Open" ${currentSession.period === 'Open' || currentSession.period == null ? 'selected' : ''}>Open</option>
+                                <option value="1" ${currentSession.period == '1' || currentSession.period == 1 ? 'selected' : ''}>Period 1 (7:00am-7:50am)</option>
+                                <option value="2" ${currentSession.period == '2' || currentSession.period == 2 ? 'selected' : ''}>Period 2 (8:00am-8:50am)</option>
+                                <option value="4" ${currentSession.period == '4' || currentSession.period == 4 ? 'selected' : ''}>Period 4 (9:40am-10:30am)</option>
+                                <option value="5" ${currentSession.period == '5' || currentSession.period == 5 ? 'selected' : ''}>Period 5 (10:40am-11:30am)</option>
+                                <option value="6" ${currentSession.period == '6' || currentSession.period == 6 ? 'selected' : ''}>Period 6 (11:40am-12:30pm)</option>
+                                <option value="7" ${currentSession.period == '7' || currentSession.period == 7 ? 'selected' : ''}>Period 7 (12:40pm-1:30pm)</option>
+                                <option value="11" ${currentSession.period == '11' || currentSession.period == 11 ? 'selected' : ''}>Period 7b (1:00pm-3:00pm)</option>
+                                <option value="8" ${currentSession.period == '8' || currentSession.period == 8 ? 'selected' : ''}>Period 8 (5:30pm-6:20pm)</option>
+                                <option value="9" ${currentSession.period == '9' || currentSession.period == 9 ? 'selected' : ''}>Period 9 (6:30pm-7:20pm)</option>
+                                <option value="10" ${currentSession.period == '10' || currentSession.period == 10 ? 'selected' : ''}>Period 10 (7:30pm-8:20pm)</option>
                             </select>
                             <select class="session-dropdown" onchange="updateClassSession('${cls.name}', ${sessionIndex}, 'room', this.value)">
                                 <option value="Open" ${currentSession.room === 'Open' ? 'selected' : ''}>Open</option>
@@ -743,19 +815,19 @@
                 classSessionAssignments[className] = [];
             }
             
-            // Ensure the session array has enough elements
-            while (classSessionAssignments[className].length <= sessionIndex) {
-                classSessionAssignments[className].push({
-                    day: 'Open',
-                    period: 'Open',
-                    room: 'Open'
-                });
+            // DEBUG: Check if we're trying to update a session beyond expected range
+            if (sessionIndex >= classSessionAssignments[className].length) {
+                console.warn(`DEBUG: Attempting to update session ${sessionIndex} for ${className}, but class only has ${classSessionAssignments[className].length} sessions`);
+                console.trace("Stack trace for out-of-range session update:");
+                return; // Don't add extra sessions
             }
             
             // Update the specific field
             if (field === 'period' && value !== 'Open') {
+                // Store period as integer for backend consistency
                 classSessionAssignments[className][sessionIndex][field] = parseInt(value);
             } else {
+                // Store other fields as strings
                 classSessionAssignments[className][sessionIndex][field] = value;
             }
             
@@ -811,6 +883,194 @@
             }
         }
         
+        async function importLastSchedule() {
+            try {
+                const response = await fetch('/load_saved_schedule', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Restore selected classes
+                    selectedClassNames.clear();
+                    result.selected_classes.forEach(className => {
+                        selectedClassNames.add(className);
+                    });
+                    
+                    // Restore session assignments
+                    classSessionAssignments = result.session_assignments || {};
+                    
+                    // Update the UI to reflect the loaded data
+                    updateUIFromLoadedData();
+                    
+                    const timestamp = new Date(result.timestamp).toLocaleString();
+                    showAlert(`Schedule imported successfully! (Saved: ${timestamp})`, 'success');
+                } else {
+                    showAlert(result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('Network error occurred', 'error');
+            }
+        }
+        
+        function updateUIFromLoadedData() {
+            // Update checkboxes for selected classes
+            document.querySelectorAll('.class-checkbox').forEach(cb => {
+                const className = cb.parentNode.querySelector('.class-name').textContent;
+                cb.checked = selectedClassNames.has(className);
+            });
+            
+            // Update session dropdowns
+            for (const [className, sessions] of Object.entries(classSessionAssignments)) {
+                sessions.forEach((session, sessionIndex) => {
+                    // Find dropdowns by class name and session index using data attributes
+                    const classContainer = Array.from(document.querySelectorAll('.class-item')).find(item => {
+                        const nameElement = item.querySelector('.class-name');
+                        return nameElement && nameElement.textContent === className;
+                    });
+                    
+                    if (classContainer) {
+                        const dropdowns = classContainer.querySelectorAll('.session-dropdown');
+                        const sessionDropdowns = Array.from(dropdowns).slice(sessionIndex * 3, (sessionIndex + 1) * 3);
+                        
+                        if (sessionDropdowns.length >= 3) {
+                            // Update day dropdown (first in group)
+                            sessionDropdowns[0].value = session.day || 'Open';
+                            
+                            // Update period dropdown (second in group) - ensure string conversion
+                            sessionDropdowns[1].value = session.period?.toString() || 'Open';
+                            
+                            // Update room dropdown (third in group)
+                            sessionDropdowns[2].value = session.room || 'Open';
+                        }
+                    }
+                });
+            }
+            
+            // Update stats
+            updateClassStats();
+        }
+        
+        function displaySchedulingErrors(errors, warnings) {
+            const schedulingErrors = document.getElementById('schedulingErrors');
+            const errorDetails = document.getElementById('errorDetails');
+            const manualWarnings = document.getElementById('manualWarnings');
+            const warningDetails = document.getElementById('warningDetails');
+            
+            // Handle critical errors (red indicator)
+            if (errors && errors.length > 0) {
+                let errorHTML = '<div>';
+                
+                errors.forEach(error => {
+                    const conflicts = error.conflicts;
+                    let conflictSummary = [];
+                    
+                    if (conflicts.student_conflicts > 0) {
+                        conflictSummary.push(`${conflicts.student_conflicts} student conflict${conflicts.student_conflicts > 1 ? 's' : ''}`);
+                    }
+                    if (conflicts.teacher_conflicts > 0) {
+                        conflictSummary.push(`${conflicts.teacher_conflicts} teacher conflict${conflicts.teacher_conflicts > 1 ? 's' : ''}`);
+                    }
+                    if (conflicts.room_conflicts > 0) {
+                        conflictSummary.push(`${conflicts.room_conflicts} room conflict${conflicts.room_conflicts > 1 ? 's' : ''}`);
+                    }
+                    
+                    let conflictText = conflictSummary.length > 0 ? conflictSummary.join(', ') : 'scheduling conflicts';
+                    
+                    errorHTML += `
+                        <div class="error-item critical">
+                            <div class="error-indicator critical">!</div>
+                            <div>
+                                <strong>${error.class_name}</strong> (${error.teacher})<br>
+                                <small>${error.student_count} students • ${conflictText}</small>`;
+                    
+                    if (error.requested_slot) {
+                        errorHTML += `<br><small><em>Requested: ${error.requested_slot}</em></small>`;
+                    }
+                    
+                    // Add specific conflict details with enhanced student conflict display
+                    if (conflicts.details && conflicts.details.length > 0) {
+                        let formattedDetails = conflicts.details.map(detail => {
+                            // Check if this is a student conflict with student names
+                            const studentMatch = detail.match(/student conflict with (.+) \(students: (.+)\)/);
+                            if (studentMatch) {
+                                const conflictClass = studentMatch[1];
+                                const students = studentMatch[2];
+                                return `student conflict with <strong>${conflictClass}</strong><br>&nbsp;&nbsp;→ Conflicting students: <em>${students}</em>`;
+                            }
+                            return detail;
+                        });
+                        errorHTML += '<br><small>Issues:<br>' + formattedDetails.join('<br>') + '</small>';
+                    }
+                    
+                    errorHTML += '</div></div>';
+                });
+                
+                errorHTML += '</div>';
+                errorDetails.innerHTML = errorHTML;
+                schedulingErrors.style.display = 'block';
+            } else {
+                schedulingErrors.style.display = 'none';
+            }
+            
+            // Handle manual assignment warnings (yellow indicator)
+            if (warnings && warnings.length > 0) {
+                let warningHTML = '<div>';
+                
+                warnings.forEach(warning => {
+                    const conflicts = warning.conflicts;
+                    let conflictSummary = [];
+                    
+                    if (conflicts.student_conflicts > 0) {
+                        conflictSummary.push(`${conflicts.student_conflicts} student conflict${conflicts.student_conflicts > 1 ? 's' : ''}`);
+                    }
+                    if (conflicts.teacher_conflicts > 0) {
+                        conflictSummary.push(`${conflicts.teacher_conflicts} teacher conflict${conflicts.teacher_conflicts > 1 ? 's' : ''}`);
+                    }
+                    if (conflicts.room_conflicts > 0) {
+                        conflictSummary.push(`${conflicts.room_conflicts} room conflict${conflicts.room_conflicts > 1 ? 's' : ''}`);
+                    }
+                    
+                    let conflictText = conflictSummary.length > 0 ? conflictSummary.join(', ') : 'scheduling conflicts';
+                    
+                    warningHTML += `
+                        <div class="error-item warning">
+                            <div class="error-indicator warning">⚠</div>
+                            <div>
+                                <strong>${warning.class_name}</strong> (${warning.teacher})<br>
+                                <small>${warning.student_count} students • ${conflictText}</small>
+                                <br><small><em>Requested: ${warning.requested_slot} → Auto-scheduled elsewhere</em></small>`;
+                    
+                    // Add specific conflict details with enhanced student conflict display
+                    if (conflicts.details && conflicts.details.length > 0) {
+                        let formattedDetails = conflicts.details.map(detail => {
+                            // Check if this is a student conflict with student names
+                            const studentMatch = detail.match(/student conflict with (.+) \(students: (.+)\)/);
+                            if (studentMatch) {
+                                const conflictClass = studentMatch[1];
+                                const students = studentMatch[2];
+                                return `student conflict with <strong>${conflictClass}</strong><br>&nbsp;&nbsp;→ Conflicting students: <em>${students}</em>`;
+                            }
+                            return detail;
+                        });
+                        warningHTML += '<br><small>Issues:<br>' + formattedDetails.join('<br>') + '</small>';
+                    }
+                    
+                    warningHTML += '</div></div>';
+                });
+                
+                warningHTML += '</div>';
+                warningDetails.innerHTML = warningHTML;
+                manualWarnings.style.display = 'block';
+            } else {
+                manualWarnings.style.display = 'none';
+            }
+        }
+        
         async function generateSchedule(usePeriod7 = false) {
             const scheduleDisplay = document.getElementById('scheduleDisplay');
             const conflictInfo = document.getElementById('conflictInfo');
@@ -820,6 +1080,8 @@
             // Hide previous results
             scheduleDisplay.style.display = 'none';
             conflictInfo.style.display = 'none';
+            document.getElementById('schedulingErrors').style.display = 'none';
+            document.getElementById('manualWarnings').style.display = 'none';
             generateWithP7Btn.style.display = 'none';
             exportBtn.style.display = 'none';
             
@@ -850,7 +1112,32 @@
                     // Store class colors for use throughout the interface
                     classColors = result.class_colors || {};
                     displaySchedule(result.schedule, result.stats);
-                    showAlert('Schedule generated successfully!', 'success');
+                    
+                    // Check if this is a partial schedule with errors or warnings
+                    if (result.partial_schedule && (result.scheduling_errors || result.manual_assignment_warnings)) {
+                        displaySchedulingErrors(result.scheduling_errors || [], result.manual_assignment_warnings || []);
+                        
+                        let message = '';
+                        let alertType = 'success';
+                        
+                        if (result.scheduling_errors && result.scheduling_errors.length > 0) {
+                            message = `${result.scheduling_errors.length} class(es) could not be scheduled`;
+                            alertType = 'error';
+                        }
+                        
+                        if (result.manual_assignment_warnings && result.manual_assignment_warnings.length > 0) {
+                            if (message) {
+                                message += ` and ${result.manual_assignment_warnings.length} manual assignment(s) were ignored`;
+                            } else {
+                                message = `${result.manual_assignment_warnings.length} manual assignment(s) were ignored due to conflicts`;
+                                alertType = 'warning';
+                            }
+                        }
+                        
+                        showAlert(`Partial schedule generated - ${message}`, alertType);
+                    } else {
+                        showAlert('Schedule generated successfully!', 'success');
+                    }
                     exportBtn.style.display = 'inline-block';
                 } else {
                     scheduleDisplay.style.display = 'none';
@@ -899,14 +1186,14 @@
             scheduleRows.innerHTML = '';
             currentSchedule = schedule;
             
-            const periods = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+            const periods = [1, 2, 3, 4, 5, 6, 7, 11, 8, 9, 10];  // Period 7b moved after Period 7
             const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
             
             periods.forEach(period => {
                 const row = document.createElement('div');
                 row.className = 'schedule-row';
                 
-                let periodLabel = `Period ${period}`;
+                let periodLabel = period === 11 ? 'Period 7b' : `Period ${period}`;
                 let periodTime = '';
                 
                 // Add period times
@@ -921,6 +1208,7 @@
                     case 8: periodTime = '5:30pm-6:20pm'; break;
                     case 9: periodTime = '6:30pm-7:20pm'; break;
                     case 10: periodTime = '7:30pm-8:20pm'; break;
+                    case 11: periodTime = '1:00pm-3:00pm'; break;
                 }
                 
                 periodLabel = `${periodLabel}<br><small>${periodTime}</small>`;

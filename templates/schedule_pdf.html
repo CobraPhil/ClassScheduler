@@ -203,7 +203,7 @@
             {% set total_classes_4_5 = schedule.get('Monday', {}).get(4, [])|length + schedule.get('Monday', {}).get(5, [])|length + schedule.get('Tuesday', {}).get(4, [])|length + schedule.get('Tuesday', {}).get(5, [])|length + schedule.get('Wednesday', {}).get(4, [])|length + schedule.get('Wednesday', {}).get(5, [])|length + schedule.get('Thursday', {}).get(4, [])|length + schedule.get('Thursday', {}).get(5, [])|length + schedule.get('Friday', {}).get(4, [])|length + schedule.get('Friday', {}).get(5, [])|length %}
             {% set needs_compact_period_3 = (total_classes_1_2 + total_classes_4_5) > 15 %}
             
-            {% for period_num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] %}
+            {% for period_num in [1, 2, 3, 4, 5, 6, 7, 11, 8, 9, 10] %}  {# Period 7b moved after Period 7 #}
             {% set period_has_classes = [] %}
             {% for day in days %}
                 {% if schedule[day] and schedule[day][period_num] %}
@@ -213,7 +213,7 @@
             {% set is_empty_period = period_has_classes|length == 0 %}
             <tr {% if is_empty_period %}class="empty-period-row"{% elif period_num == 3 and needs_compact_period_3 %}class="period-3-compact"{% elif period_num == 5 %}class="page-break-after-5"{% endif %}>
                 <td class="period-label {% if period_num == 3 %}chapel-period{% endif %}">
-                    Period {{ period_num }}<br>
+                    {% if period_num == 11 %}Period 7b{% else %}Period {{ period_num }}{% endif %}<br>
                     <small>
                     {% if period_num == 1 %}7:00am-7:50am
                     {% elif period_num == 2 %}8:00am-8:50am
@@ -225,6 +225,7 @@
                     {% elif period_num == 8 %}5:30pm-6:20pm
                     {% elif period_num == 9 %}6:30pm-7:20pm
                     {% elif period_num == 10 %}7:30pm-8:20pm
+                    {% elif period_num == 11 %}1:00pm-3:00pm<br>(Period 7b)
                     {% endif %}
                     </small>
                 </td>

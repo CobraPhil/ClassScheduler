@@ -76,6 +76,10 @@ def save_schedule_data():
     }
     
     try:
+        print(f"DEBUG: About to save session assignments for {len(manual_session_assignments)} classes")
+        for class_name, sessions in manual_session_assignments.items():
+            print(f"DEBUG: {class_name} has {len(sessions)} sessions: {sessions}")
+        
         with open(SCHEDULE_DATA_FILE, 'w', encoding='utf-8') as f:
             json.dump(schedule_data, f, indent=2, ensure_ascii=False)
         print(f"Schedule data saved to {SCHEDULE_DATA_FILE}")
@@ -325,14 +329,15 @@ class ClassScheduler:
         return [
             [2, 4, 5, 6],  # Core periods (highest priority)
             [1],           # Period 1 (second priority) 
-            [7],           # Period 7 (last resort)
+            [7],           # Period 7 (lunch time)
+            [11],          # Period 7b (afternoon option)
             [8]            # Period 8 (special teachers only)
         ]
     
     def evaluate_solution_quality(self, schedule):
         """Evaluate the quality of a scheduling solution"""
         score = 0
-        period_usage = {p: 0 for p in range(1, 11)}
+        period_usage = {p: 0 for p in range(1, 12)}  # Updated to include Period 7b
         
         # Count period usage
         for day in schedule:
@@ -347,6 +352,7 @@ class ClassScheduler:
         score += period_usage[6] * 10
         score -= period_usage[1] * 5   # Penalize Period 1 usage
         score -= period_usage[7] * 20  # Heavy penalty for Period 7
+        score -= period_usage[11] * 10 # Moderate penalty for Period 7b (afternoon)
         score += period_usage[8] * 8   # Period 8 is okay for special teachers
         score += period_usage[9] * 8   # Period 9 is okay for special teachers  
         score += period_usage[10] * 8  # Period 10 is okay for special teachers
@@ -532,7 +538,11 @@ class ClassScheduler:
                 class_conflicts = self.check_conflicts(class_info, existing_class)
                 if class_conflicts:
                     for conflict in class_conflicts:
-                        conflicts_found.append(f"{conflict['type']} conflict with {existing_class['Class']}")
+                        if conflict['type'] == 'student' and 'shared_students' in conflict:
+                            student_names = ', '.join(conflict['shared_students'])
+                            conflicts_found.append(f"student conflict with {existing_class['Class']} (students: {student_names})")
+                        else:
+                            conflicts_found.append(f"{conflict['type']} conflict with {existing_class['Class']}")
             
             # Check room availability
             if assigned_room_type == 'computer_lab':
@@ -827,13 +837,14 @@ class ClassScheduler:
         available_periods = [1, 2, 4, 5, 6]
         if use_period_7:
             available_periods.append(7)
+            available_periods.append(11)  # Add Period 7b when Period 7 is enabled
         
         # Removed hardcoded teacher period requirements - now handled via manual dropdowns
         
         # Initialize schedule grid
         for day in DAYS:
             self.schedule[day] = {}
-            for period in range(1, 11):
+            for period in range(1, 12):  # Updated to include Period 7b (period 11)
                 self.schedule[day][period] = []
         
         # FIRST: Handle manual session assignments (highest priority)
@@ -910,7 +921,7 @@ class ClassScheduler:
                                     # Day specified, period open - need to find available period on that day
                                     day = session['day']
                                     # Find the first available period on this day
-                                    available_periods = [1, 2, 4, 5, 6, 7, 8, 9, 10]  # All possible periods
+                                    available_periods = [1, 2, 4, 5, 6, 7, 8, 9, 10, 11]  # All possible periods including Period 7b
                                     period = None
                                     for test_period in available_periods:
                                         if not self.schedule[day][test_period]:  # Empty period
@@ -959,7 +970,11 @@ class ClassScheduler:
                                         class_conflicts = self.check_conflicts(class_info, existing_class)
                                         if class_conflicts:
                                             for conflict in class_conflicts:
-                                                conflicts_found.append(f"{conflict['type']} conflict with {existing_class['Class']}")
+                                                if conflict['type'] == 'student' and 'shared_students' in conflict:
+                                                    student_names = ', '.join(conflict['shared_students'])
+                                                    conflicts_found.append(f"student conflict with {existing_class['Class']} (students: {student_names})")
+                                                else:
+                                                    conflicts_found.append(f"{conflict['type']} conflict with {existing_class['Class']}")
                                     
                                     if conflicts_found:
                                         print(f"  CONFLICT ERROR: Manual assignment blocked due to conflicts: {conflicts_found}")
@@ -1628,27 +1643,30 @@ def generate_schedule():
                         response_data['scheduling_errors'].append(error_info)
                         print(f"ERROR DEBUG: Added error info for {missing_class}")
             
-            # Check for manual assignment conflicts - only report conflicts for classes that weren't eventually scheduled
+            # Check for manual assignment conflicts and create separate error categories
             manual_conflicts = getattr(scheduler, 'manual_conflicts', [])
             if manual_conflicts:
                 print(f"MANUAL CONFLICT DEBUG: Found {len(manual_conflicts)} manual assignment conflicts")
                 if 'scheduling_errors' not in response_data:
                     response_data['scheduling_errors'] = []
+                if 'manual_assignment_warnings' not in response_data:
+                    response_data['manual_assignment_warnings'] = []
                 
-                # Only add manual conflicts for classes that were NOT successfully scheduled through auto-scheduling
+                # Separate manual conflicts into two categories
                 for conflict in manual_conflicts:
                     class_info = conflict['class']
                     class_name = class_info['Class']
                     
                     # Check if this class was eventually scheduled through auto-scheduling
                     if class_name not in scheduled_class_names:
-                        # Class was not scheduled at all - report the manual conflict
+                        # RED INDICATOR: Class was not scheduled at all - critical error
                         error_info = {
                             'class_name': class_name,
                             'teacher': class_info.get('Teacher', 'Unknown'),
                             'student_count': class_info.get('student_count', 0),
                             'requested_slot': conflict['requested_slot'],
                             'conflict_type': 'manual_assignment_blocked',
+                            'severity': 'critical',  # Red indicator
                             'conflicts': {
                                 'student_conflicts': len([c for c in conflict['conflicts'] if 'student conflict' in c]),
                                 'teacher_conflicts': len([c for c in conflict['conflicts'] if 'teacher conflict' in c]),
@@ -1657,17 +1675,34 @@ def generate_schedule():
                             }
                         }
                         response_data['scheduling_errors'].append(error_info)
-                        print(f"MANUAL CONFLICT DEBUG: Added manual conflict for {class_name} at {conflict['requested_slot']} (class not auto-scheduled)")
+                        print(f"MANUAL CONFLICT DEBUG: Added critical manual conflict for {class_name} at {conflict['requested_slot']} (class not auto-scheduled)")
                     else:
-                        # Class was auto-scheduled - just log that manual assignment failed
-                        print(f"MANUAL CONFLICT DEBUG: Manual assignment failed for {class_name} at {conflict['requested_slot']}, but class was auto-scheduled elsewhere")
+                        # YELLOW INDICATOR: Class was auto-scheduled but not at manual settings - warning
+                        warning_info = {
+                            'class_name': class_name,
+                            'teacher': class_info.get('Teacher', 'Unknown'),
+                            'student_count': class_info.get('student_count', 0),
+                            'requested_slot': conflict['requested_slot'],
+                            'conflict_type': 'manual_assignment_ignored',
+                            'severity': 'warning',  # Yellow indicator
+                            'conflicts': {
+                                'student_conflicts': len([c for c in conflict['conflicts'] if 'student conflict' in c]),
+                                'teacher_conflicts': len([c for c in conflict['conflicts'] if 'teacher conflict' in c]),
+                                'room_conflicts': len([c for c in conflict['conflicts'] if 'room conflict' in c]),
+                                'details': conflict['conflicts']
+                            }
+                        }
+                        response_data['manual_assignment_warnings'].append(warning_info)
+                        print(f"MANUAL CONFLICT DEBUG: Added manual assignment warning for {class_name} at {conflict['requested_slot']} (class auto-scheduled elsewhere)")
                 
-                # Mark as partial schedule if there are manual conflicts that affected scheduling
-                has_unscheduled_conflicts = any(
+                # Mark as partial schedule if there are critical manual conflicts or manual assignment warnings
+                has_critical_conflicts = any(
                     conflict['class']['Class'] not in scheduled_class_names 
                     for conflict in manual_conflicts
                 )
-                if has_unscheduled_conflicts:
+                has_manual_warnings = len(response_data.get('manual_assignment_warnings', [])) > 0
+                
+                if has_critical_conflicts or has_manual_warnings:
                     response_data['partial_schedule'] = True
                     response_data['has_manual_conflicts'] = True
             
@@ -1684,6 +1719,44 @@ def generate_schedule():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/debug/students')
+def debug_students():
+    """Debug endpoint to examine student enrollment data"""
+    global classes_data
+    
+    if not classes_data:
+        return jsonify({'error': 'No class data loaded'})
+    
+    # Find the specific classes we're debugging
+    btcm_class = None
+    gela_class = None
+    
+    for class_info in classes_data:
+        if 'BTCM 101 P Christian Life' in class_info['Class']:
+            btcm_class = class_info
+        elif 'GELA 203 B English as a Second Language 3' in class_info['Class']:
+            gela_class = class_info
+    
+    result = {
+        'btcm_class': btcm_class,
+        'gela_class': gela_class
+    }
+    
+    if btcm_class and gela_class:
+        # Parse students and check for conflicts
+        scheduler = ClassScheduler()
+        btcm_students = scheduler.parse_students(btcm_class['Students'])
+        gela_students = scheduler.parse_students(gela_class['Students'])
+        
+        result['btcm_parsed_students'] = btcm_students
+        result['gela_parsed_students'] = gela_students
+        result['intersection'] = list(set(btcm_students).intersection(set(gela_students)))
+        
+        conflicts = scheduler.check_conflicts(btcm_class, gela_class)
+        result['conflicts_detected'] = conflicts
+    
+    return jsonify(result)
+
 @app.route('/set_selection', methods=['POST'])
 def set_selection():
     global selected_classes, manual_room_assignments, manual_period_assignments, manual_session_assignments, current_schedule
@@ -1692,6 +1765,11 @@ def set_selection():
         data = request.get_json()
         selected_classes = data.get('selected_classes', [])
         manual_session_assignments = data.get('session_assignments', {})
+        
+        # DEBUG: Log what's being received from frontend
+        print("DEBUG SET_SELECTION: Received data from frontend:")
+        for class_name, sessions in manual_session_assignments.items():
+            print(f"  {class_name}: {len(sessions)} sessions - {sessions}")
         
         # Convert session assignments to the old format for backward compatibility
         # This is a fallback for classes that don't have specific session assignments
@@ -1749,6 +1827,10 @@ def load_saved_schedule():
         # Restore the form data
         selected_classes = schedule_data.get('selected_classes', [])
         manual_session_assignments = schedule_data.get('session_assignments', {})
+        
+        # DEBUG: Check if any class has incorrect session counts
+        for class_name, sessions in manual_session_assignments.items():
+            print(f"DEBUG LOAD: {class_name} has {len(sessions)} sessions")
         
         print(f"Restored {len(selected_classes)} selected classes")
         print(f"Restored session assignments for {len(manual_session_assignments)} classes")
@@ -2045,7 +2127,7 @@ def export_pdf():
         
         # Generate the table body with the schedule data
         days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
-        for period_num in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+        for period_num in [1, 2, 3, 4, 5, 6, 7, 11, 8, 9, 10]:  # Period 7b moved after Period 7
             # Check if this period has any classes
             period_has_classes = False
             for day in days:
@@ -2055,10 +2137,11 @@ def export_pdf():
             
             # Apply empty-period-row class if no classes in this period
             row_class = ' class="empty-period-row"' if not period_has_classes else ''
+            period_display = 'Period 7b' if period_num == 11 else f'Period {period_num}'
             complete_html += f"""
             <tr{row_class}>
                 <td class="period-label {'chapel-period' if period_num == 3 else ''}">
-                    Period {period_num}<br>
+                    {period_display}<br>
                     <small>"""
             
             # Add period times
@@ -2072,6 +2155,7 @@ def export_pdf():
             elif period_num == 8: complete_html += "5:30pm-6:20pm"
             elif period_num == 9: complete_html += "6:30pm-7:20pm"
             elif period_num == 10: complete_html += "7:30pm-8:20pm"
+            elif period_num == 11: complete_html += "1:00pm-3:00pm<br>(Period 7b)"
             
             complete_html += """</small>
                 </td>"""
