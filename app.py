@@ -2171,8 +2171,10 @@ def export_pdf():
                         })
                         teacher_name = class_info.get('teacher_abbreviated', class_info.get('Teacher', ''))
                         room_name = class_info.get('room_abbreviated', class_info.get('room', 'TBD'))
+                        # Escape teacher name for safe HTML attributes
+                        escaped_teacher = class_info.get('Teacher', '').replace('"', '&quot;').replace("'", '&#39;')
                         complete_html += f"""
-                        <div class="class-block">
+                        <div class="class-block clickable-class" data-teacher="{escaped_teacher}" style="cursor: pointer;">
                             <div class="class-title" style="background-color: {class_color_data['header']}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">{class_info.get('Class', '')}</div>
                             <div class="class-body" style="background-color: {class_color_data['body']}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;">
                                 <div class="class-details" style="color: white;"><strong>{teacher_name}</strong> • {room_name} • {class_info.get('student_count', 0)} students</div>
@@ -2186,9 +2188,110 @@ def export_pdf():
         </tbody>
     </table>
     
+    <!-- Teacher filter indicator -->
+    <div id="teacherFilterIndicator" style="display: none; margin-top: 15px; padding: 10px; background-color: #e3f2fd; border-radius: 5px; border-left: 4px solid #2196f3;">
+        <strong>🔍 Showing classes for: <span id="currentTeacher"></span></strong>
+        <button onclick="clearTeacherFilter()" style="margin-left: 15px; padding: 5px 10px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer;">Show All Classes</button>
+    </div>
+    
     <div class="footer">
         <p>Class Schedule Generator - Conflict-free scheduling with room assignments</p>
     </div>
+
+    <script>
+        let currentTeacherFilter = null;
+        
+        // Debug function
+        console.log('Teacher filtering script loaded');
+        console.log('Number of clickable-class elements found:', document.querySelectorAll('.clickable-class').length);
+        
+        function filterByTeacher(teacherName) {
+            if (currentTeacherFilter === teacherName) {
+                // Already filtered by this teacher, do nothing
+                return;
+            }
+            
+            currentTeacherFilter = teacherName;
+            
+            // Hide all class blocks
+            document.querySelectorAll('.class-block').forEach(block => {
+                block.style.display = 'none';
+                block.style.opacity = '0.3';
+            });
+            
+            // Show only blocks for this teacher with highlighting
+            document.querySelectorAll(`[data-teacher="${teacherName}"]`).forEach(block => {
+                block.style.display = 'block';
+                block.style.opacity = '1';
+                block.style.transform = 'scale(1.02)';
+                block.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
+                block.style.transition = 'all 0.2s ease';
+            });
+            
+            // Show filter indicator
+            document.getElementById('teacherFilterIndicator').style.display = 'block';
+            document.getElementById('currentTeacher').textContent = teacherName;
+            
+            console.log(`Filtered to show only classes for teacher: ${teacherName}`);
+        }
+        
+        function clearTeacherFilter() {
+            currentTeacherFilter = null;
+            
+            // Show all class blocks and remove highlighting
+            document.querySelectorAll('.class-block').forEach(block => {
+                block.style.display = 'block';
+                block.style.opacity = '1';
+                block.style.transform = 'none';
+                block.style.boxShadow = 'none';
+                block.style.transition = 'all 0.2s ease';
+            });
+            
+            // Hide filter indicator
+            document.getElementById('teacherFilterIndicator').style.display = 'none';
+            
+            console.log('Cleared teacher filter - showing all classes');
+        }
+        
+        // Event delegation for class block clicks
+        document.addEventListener('click', function(event) {
+            console.log('Click detected on:', event.target);
+            const classBlock = event.target.closest('.clickable-class');
+            console.log('Closest clickable-class:', classBlock);
+            
+            if (classBlock) {
+                // Clicked on a class block
+                console.log('Clicked on class block!');
+                event.stopPropagation();
+                const teacherName = classBlock.getAttribute('data-teacher');
+                console.log('Teacher name:', teacherName);
+                if (teacherName) {
+                    console.log('Calling filterByTeacher with:', teacherName);
+                    filterByTeacher(teacherName);
+                }
+            } else if (!event.target.closest('#teacherFilterIndicator') && currentTeacherFilter !== null) {
+                // Clicked outside - clear filter
+                console.log('Clicked outside - clearing filter');
+                clearTeacherFilter();
+            }
+        });
+        
+        // Add visual feedback for hovering using event delegation
+        document.addEventListener('mouseenter', function(event) {
+            if (event.target.closest('.clickable-class') && !currentTeacherFilter) {
+                const block = event.target.closest('.clickable-class');
+                block.style.transform = 'scale(1.05)';
+                block.style.transition = 'transform 0.1s ease';
+            }
+        }, true);
+        
+        document.addEventListener('mouseleave', function(event) {
+            if (event.target.closest('.clickable-class') && !currentTeacherFilter) {
+                const block = event.target.closest('.clickable-class');
+                block.style.transform = 'none';
+            }
+        }, true);
+    </script>
 </body>
 </html>"""
         
