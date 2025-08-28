@@ -413,6 +413,97 @@
         .error-indicator.warning {
             background-color: #ffc107;
         }
+        
+        /* Drag and Drop Styles */
+        .draggable-class {
+            transition: all 0.2s ease;
+        }
+        
+        .draggable-class:hover {
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        
+        .multi-session-class {
+            opacity: 0.9;
+        }
+        
+        .multi-session-class:hover {
+            opacity: 1;
+        }
+        
+        /* Drop zone styles */
+        .drop-zone {
+            transition: all 0.2s ease;
+            min-height: 60px;
+        }
+        
+        .drop-zone.valid-drop {
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 2px dashed #4CAF50;
+            animation: pulse-valid 1s infinite;
+        }
+        
+        .drop-zone.invalid-drop {
+            background-color: rgba(244, 67, 54, 0.1);
+            border: 2px dashed #f44336;
+            opacity: 0.5;
+        }
+        
+        .drop-zone.current-slot {
+            background-color: rgba(255, 193, 7, 0.2);
+            border: 2px solid #FFC107;
+        }
+        
+        .drop-zone.drag-hover {
+            background-color: rgba(33, 150, 243, 0.2);
+            border: 2px solid #2196F3;
+            transform: scale(1.02);
+        }
+        
+        /* Animations */
+        @keyframes pulse-valid {
+            0% { border-color: #4CAF50; }
+            50% { border-color: #8BC34A; }
+            100% { border-color: #4CAF50; }
+        }
+        
+        /* Room conflict indicator */
+        .room-indicator.conflict {
+            color: #ff4444 !important;
+            font-weight: bold;
+        }
+        
+        /* Dragging state */
+        .dragging {
+            opacity: 0.5;
+            transform: rotate(5deg);
+        }
+        
+        /* Visual feedback for different class types */
+        .class-block.draggable-class::before {
+            content: "↕";
+            position: absolute;
+            top: 2px;
+            right: 2px;
+            font-size: 10px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        
+        .class-block.draggable-class:hover::before {
+            opacity: 0.7;
+        }
+        
+        /* Multi-session individual session styling */
+        .class-block.multi-session-session::after {
+            content: "📌";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            font-size: 10px;
+            opacity: 0.7;
+        }
     </style>
 </head>
 <body>
@@ -1096,6 +1187,10 @@
             scheduleDisplay.style.display = 'block';
             
             try {
+                // Create a timeout controller for the fetch request
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+                
                 const response = await fetch('/generate_schedule', {
                     method: 'POST',
                     headers: {
@@ -1103,8 +1198,15 @@
                     },
                     body: JSON.stringify({
                         use_period_7: usePeriod7
-                    })
+                    }),
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
+                
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status} ${response.statusText}`);
+                }
                 
                 const result = await response.json();
                 
@@ -1157,7 +1259,18 @@
                 }
             } catch (error) {
                 scheduleDisplay.style.display = 'none';
-                showAlert('Network error occurred', 'error');
+                
+                if (error.name === 'AbortError') {
+                    showAlert('Request timed out - schedule generation took too long. Please try again.', 'error');
+                } else if (error.message.includes('Server error:')) {
+                    showAlert(error.message, 'error');
+                } else if (error.message.includes('Failed to fetch')) {
+                    showAlert('Network connection error - please check your connection and try again.', 'error');
+                } else {
+                    showAlert(`Error: ${error.message}`, 'error');
+                }
+                
+                console.error('Schedule generation error:', error);
             }
         }
         
@@ -1217,12 +1330,31 @@
                 
                 days.forEach(day => {
                     const cell = document.createElement('div');
-                    cell.className = 'schedule-cell';
+                    cell.className = 'schedule-cell drop-zone';
+                    cell.dataset.day = day;
+                    cell.dataset.period = period;
                     
                     if (schedule[day] && schedule[day][period]) {
-                        schedule[day][period].forEach(classInfo => {
+                        schedule[day][period].forEach((classInfo, sessionIndex) => {
                             const classBlock = document.createElement('div');
-                            classBlock.className = 'class-block';
+                            
+                            // All individual sessions are now draggable
+                            classBlock.className = 'class-block draggable-class';
+                            classBlock.draggable = true;
+                            classBlock.dataset.className = classInfo.Class;
+                            classBlock.dataset.sessionIndex = classInfo.sessionIndex || 0; // Use sessionIndex from backend
+                            classBlock.dataset.currentDay = day;
+                            classBlock.dataset.currentPeriod = period;
+                            classBlock.style.cursor = 'grab';
+                            
+                            // Determine class frequency for visual indicator
+                            const classUnits = classInfo.Units || 8;
+                            const frequency = getClassFrequency(classUnits);
+                            
+                            
+                            // All sessions are individually movable
+                            classBlock.title = `${classInfo.Class} - Session ${(classInfo.sessionIndex || 0) + 1} - Drag to move this session`;
+                            classBlock.classList.add('movable-session');
                             
                             // Use room information from backend
                             const roomName = classInfo.room || 'TBD';
@@ -1252,10 +1384,15 @@
                                 roomNameAbbrev = roomName.replace('Classroom', 'Room').replace('classroom', 'Room').replace('class', 'Class');
                             }
                             
+                            // Add visual indicator for all movable classes
+                            const multiSessionIndicator = '<span style="float: right; font-size: 8px; opacity: 0.8;">📌</span>';
+                            
                             classBlock.innerHTML = `
-                                <div class="class-title" style="background-color: ${classColorData.header}; padding: 3px 6px; margin: -6px -6px 0 -6px; border-radius: 5px 5px 0 0; color: white;" title="${classInfo.Class}">${classInfo.Class}</div>
+                                <div class="class-title" style="background-color: ${classColorData.header}; padding: 3px 6px; margin: -6px -6px 0 -6px; border-radius: 5px 5px 0 0; color: white;" title="${classInfo.Class}">
+                                    ${classInfo.Class}${multiSessionIndicator}
+                                </div>
                                 <div class="class-body" style="background-color: ${classColorData.body}; padding: 3px 6px; margin: 0 -6px -6px -6px; border-radius: 0 0 5px 5px; font-size: 10px; line-height: 1.2; color: white;">
-                                    <div class="class-details" style="color: white;"><strong>${teacherName}</strong> • ${roomNameAbbrev} • ${classInfo.student_count || 0} students</div>
+                                    <div class="class-details" style="color: white;"><strong>${teacherName}</strong> • <span class="room-indicator">${roomNameAbbrev}</span> • ${classInfo.student_count || 0} students</div>
                                 </div>
                             `;
                             cell.appendChild(classBlock);
@@ -1267,8 +1404,274 @@
                 
                 scheduleRows.appendChild(row);
             });
+            
+            // Initialize drag and drop functionality after schedule is rendered
+            initializeDragAndDrop();
         }
         
+        // Helper function to determine class frequency from units
+        function getClassFrequency(units) {
+            try {
+                const unitsNum = parseInt(units) || 8;
+                if (unitsNum === 4) return 1;
+                if (unitsNum === 8) return 2;
+                if (unitsNum === 12) return 3;
+                return 1;
+            } catch {
+                return 1;
+            }
+        }
+
+        // Drag and Drop Functionality
+        let draggedElement = null;
+        let validSlots = [];
+        
+        // Add event listeners for drag and drop after schedule is displayed
+        function initializeDragAndDrop() {
+            console.log('Initializing drag and drop functionality');
+            
+            // Remove existing event listeners to avoid duplicates
+            document.removeEventListener('dragstart', handleDragStart);
+            document.removeEventListener('dragover', handleDragOver);
+            document.removeEventListener('dragenter', handleDragEnter);
+            document.removeEventListener('dragleave', handleDragLeave);
+            document.removeEventListener('drop', handleDrop);
+            document.removeEventListener('dragend', handleDragEnd);
+            
+            // Add drag and drop event listeners
+            document.addEventListener('dragstart', handleDragStart);
+            document.addEventListener('dragover', handleDragOver);
+            document.addEventListener('dragenter', handleDragEnter);
+            document.addEventListener('dragleave', handleDragLeave);
+            document.addEventListener('drop', handleDrop);
+            document.addEventListener('dragend', handleDragEnd);
+            
+            console.log(`Found ${document.querySelectorAll('.draggable-class').length} draggable classes`);
+        }
+        
+        function handleDragStart(e) {
+            if (!e.target.classList.contains('draggable-class')) return;
+            
+            draggedElement = e.target;
+            e.target.style.opacity = '0.5';
+            e.target.style.cursor = 'grabbing';
+            
+            const className = e.target.dataset.className;
+            const sessionIndex = parseInt(e.target.dataset.sessionIndex) || 0;
+            const currentDay = e.target.dataset.currentDay;
+            const currentPeriod = e.target.dataset.currentPeriod;
+            
+            console.log(`Drag started: ${className} Session ${sessionIndex + 1} from ${currentDay} Period ${currentPeriod}`);
+            
+            // Get valid slots from backend
+            fetch('/api/get_valid_slots', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    class_name: className,
+                    session_index: sessionIndex,
+                    current_day: currentDay,
+                    current_period: parseInt(currentPeriod)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    validSlots = data.valid_slots;
+                    highlightValidSlots();
+                } else {
+                    console.error('Failed to get valid slots:', data.error);
+                    showAlert(`Cannot move class: ${data.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error getting valid slots:', error);
+                showAlert(`Error checking available slots: ${error.message || error}`, 'error');
+            });
+        }
+        
+        function highlightValidSlots() {
+            // Reset all cells
+            document.querySelectorAll('.drop-zone').forEach(cell => {
+                cell.classList.remove('valid-drop', 'invalid-drop', 'current-slot');
+            });
+            
+            validSlots.forEach(slot => {
+                const cell = document.querySelector(`[data-day="${slot.day}"][data-period="${slot.period}"]`);
+                if (cell) {
+                    if (slot.valid) {
+                        cell.classList.add('valid-drop');
+                        cell.title = `Valid drop location: ${slot.day} Period ${slot.period}`;
+                    } else {
+                        cell.classList.add('invalid-drop');
+                        cell.title = `Cannot drop here: ${slot.conflicts.join(', ')}`;
+                    }
+                }
+            });
+            
+            // Mark current slot
+            if (draggedElement) {
+                const currentDay = draggedElement.dataset.currentDay;
+                const currentPeriod = draggedElement.dataset.currentPeriod;
+                const currentCell = document.querySelector(`[data-day="${currentDay}"][data-period="${currentPeriod}"]`);
+                if (currentCell) {
+                    currentCell.classList.add('current-slot');
+                    currentCell.title = 'Current location';
+                }
+            }
+        }
+        
+        function handleDragOver(e) {
+            e.preventDefault(); // Allow drop
+        }
+        
+        function handleDragEnter(e) {
+            if (e.target.classList.contains('drop-zone')) {
+                e.target.classList.add('drag-hover');
+            }
+        }
+        
+        function handleDragLeave(e) {
+            if (e.target.classList.contains('drop-zone')) {
+                e.target.classList.remove('drag-hover');
+            }
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            
+            if (!draggedElement) return;
+            
+            const dropZone = e.target.closest('.drop-zone');
+            if (!dropZone) {
+                cleanupDragState();
+                return;
+            }
+            
+            const newDay = dropZone.dataset.day;
+            const newPeriod = dropZone.dataset.period;
+            const className = draggedElement.dataset.className;
+            const sessionIndex = parseInt(draggedElement.dataset.sessionIndex) || 0;
+            
+            console.log(`Drop attempted: ${className} Session ${sessionIndex + 1} to ${newDay} Period ${newPeriod}`);
+            
+            // Check if this is a valid drop location
+            const validSlot = validSlots.find(slot => 
+                slot.day === newDay && slot.period == newPeriod
+            );
+            
+            if (!validSlot || !validSlot.valid) {
+                showAlert('Cannot move session to this location due to conflicts', 'error');
+                cleanupDragState();
+                return;
+            }
+            
+            // Move the session via backend
+            fetch('/api/move_class', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    class_name: className,
+                    session_index: sessionIndex,
+                    new_day: newDay,
+                    new_period: parseInt(newPeriod)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Class moved successfully:', data.new_assignment);
+                    
+                    // Check if draggedElement is still valid
+                    if (!draggedElement) {
+                        console.error('draggedElement is null during move success');
+                        showAlert('Error: Lost reference to dragged element', 'error');
+                        return;
+                    }
+                    
+                    // Update room indicator if there's a conflict
+                    const roomIndicator = draggedElement.querySelector('.room-indicator');
+                    if (roomIndicator && data.new_assignment && data.new_assignment.room_conflict) {
+                        roomIndicator.style.color = '#ff4444';
+                        roomIndicator.title = 'Room conflict - check Select Classes page';
+                    }
+                    
+                    // Move the element in the DOM
+                    if (dropZone && dropZone.parentNode) {
+                        dropZone.appendChild(draggedElement);
+                    }
+                    
+                    // Update the dragged element's data attributes
+                    draggedElement.dataset.currentDay = newDay;
+                    draggedElement.dataset.currentPeriod = newPeriod;
+                    
+                    // Sync with dropdown menus
+                    syncDropdowns(className, sessionIndex, newDay, newPeriod);
+                    
+                    showAlert(`${className} Session ${sessionIndex + 1} moved to ${newDay} Period ${newPeriod}`, 'success');
+                } else {
+                    console.error('Failed to move class:', data.error);
+                    showAlert(`Failed to move class: ${data.error}`, 'error');
+                }
+                
+                // Clean up drag state after successful or failed move
+                cleanupDragState();
+            })
+            .catch(error => {
+                console.error('Error moving class:', error);
+                showAlert(`Error moving class: ${error.message || error}`, 'error');
+                
+                // Clean up drag state after error
+                cleanupDragState();
+            });
+        }
+        
+        function cleanupDragState() {
+            // Clear visual feedback
+            document.querySelectorAll('.drop-zone').forEach(cell => {
+                cell.classList.remove('valid-drop', 'invalid-drop', 'current-slot', 'drag-hover');
+                cell.title = '';
+            });
+            
+            // Reset dragged element opacity and cursor
+            if (draggedElement) {
+                draggedElement.style.opacity = '1';
+                draggedElement.style.cursor = 'grab';
+            }
+            
+            draggedElement = null;
+            validSlots = [];
+        }
+        
+        function handleDragEnd(e) {
+            // Only reset visual state, don't clean up drag state yet
+            // (drag state will be cleaned up after move operation completes)
+            if (e.target === draggedElement) {
+                e.target.style.opacity = '1';
+                e.target.style.cursor = 'grab';
+            }
+        }
+        
+        // Sync with dropdown menus on the Select Classes page
+        function syncDropdowns(className, sessionIndex, newDay, newPeriod) {
+            // Find the dropdown for the specific session of this class
+            const daySelect = document.querySelector(`select[data-class="${className}"][data-session="${sessionIndex}"][data-field="day"]`);
+            const periodSelect = document.querySelector(`select[data-class="${className}"][data-session="${sessionIndex}"][data-field="period"]`);
+            
+            if (daySelect) {
+                daySelect.value = newDay;
+                console.log(`Updated day dropdown for ${className} Session ${sessionIndex + 1} to ${newDay}`);
+            }
+            
+            if (periodSelect) {
+                periodSelect.value = newPeriod;
+                console.log(`Updated period dropdown for ${className} Session ${sessionIndex + 1} to ${newPeriod}`);
+            }
+        }
 
         async function exportPDF() {
             if (!currentSchedule) {

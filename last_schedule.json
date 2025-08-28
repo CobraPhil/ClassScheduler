@@ -1,0 +1,422 @@
+{
+  "selected_classes": [
+    "BBTTS 204 E Cults and Churches",
+    "BBTTS 204 P Cults and Churches",
+    "BTBL 102 Greek Grammar II",
+    "BTBL 104 Hebrew Grammar II",
+    "BTBS 201 E Biblical Interpretation",
+    "BTBS 201 P Biblical Interpretation",
+    "BTCM 101 E Christian Life",
+    "BTCM 101 P Christian Life",
+    "BTCM 104 E Homiletics",
+    "BTCM 104 P Homiletics",
+    "BTCM 306 E Christian Biographies",
+    "BTCM 306 P Christian Biographies",
+    "BTCM 403 E Pastoral Counseling",
+    "BTCM 403 P Pastoral Counseling",
+    "BTOT 308 E Major Prophets",
+    "BTOT 308 P Major Prophets",
+    "EDPD 103 Classroom Management",
+    "Education Math exam 2020",
+    "GECO 102 Computers 2",
+    "GEHU 102 History of Civilization II",
+    "GELA 203 B English as a Second Language 3",
+    "GELA 204 B English as a Second Language 4B",
+    "GEMA 211 Finite Mathematics"
+  ],
+  "session_assignments": {
+    "BBTTS 204 E Cults and Churches": [
+      {
+        "day": "Monday",
+        "period": 6,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Wednesday",
+        "period": 6,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Friday",
+        "period": 6,
+        "room": "Classroom 5"
+      }
+    ],
+    "BBTTS 204 P Cults and Churches": [
+      {
+        "day": "Monday",
+        "period": 2,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Wednesday",
+        "period": 2,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Friday",
+        "period": 2,
+        "room": "Classroom 5"
+      }
+    ],
+    "BTBL 102 Greek Grammar II": [
+      {
+        "day": "Tuesday",
+        "period": 6,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Thursday",
+        "period": 6,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTBL 104 Hebrew Grammar II": [
+      {
+        "day": "Tuesday",
+        "period": 4,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Thursday",
+        "period": 4,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTBS 201 E Biblical Interpretation": [
+      {
+        "day": "Tuesday",
+        "period": 1,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Tuesday",
+        "period": 2,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTBS 201 P Biblical Interpretation": [
+      {
+        "day": "Monday",
+        "period": 9,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Monday",
+        "period": 10,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 101 E Christian Life": [
+      {
+        "day": "Monday",
+        "period": 2,
+        "room": "Chapel"
+      },
+      {
+        "day": "Friday",
+        "period": 2,
+        "room": "Chapel"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 101 P Christian Life": [
+      {
+        "day": "Monday",
+        "period": 4,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Friday",
+        "period": 4,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 104 E Homiletics": [
+      {
+        "day": "Tuesday",
+        "period": 9,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Friday",
+        "period": 5,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 104 P Homiletics": [
+      {
+        "day": "Tuesday",
+        "period": 2,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Thursday",
+        "period": 9,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 306 E Christian Biographies": [
+      {
+        "day": "Monday",
+        "period": 1,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Thursday",
+        "period": 1,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 306 P Christian Biographies": [
+      {
+        "day": "Thursday",
+        "period": 5,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Friday",
+        "period": 5,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 403 E Pastoral Counseling": [
+      {
+        "day": "Monday",
+        "period": 4,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Thursday",
+        "period": 2,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTCM 403 P Pastoral Counseling": [
+      {
+        "day": "Tuesday",
+        "period": 4,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Thursday",
+        "period": 4,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTOT 308 E Major Prophets": [
+      {
+        "day": "Monday",
+        "period": 9,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Monday",
+        "period": 10,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "BTOT 308 P Major Prophets": [
+      {
+        "day": "Tuesday",
+        "period": 5,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Tuesday",
+        "period": 6,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "EDPD 103 Classroom Management": [
+      {
+        "day": "Tuesday",
+        "period": 5,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Thursday",
+        "period": 5,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "Education Math exam 2020": [
+      {
+        "day": "Wednesday",
+        "period": 2,
+        "room": "Chapel"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "GECO 102 Computers 2": [
+      {
+        "day": "Monday",
+        "period": 5,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Wednesday",
+        "period": 5,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "GEHU 102 History of Civilization II": [
+      {
+        "day": "Monday",
+        "period": 4,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Friday",
+        "period": 4,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "GELA 203 B English as a Second Language 3": [
+      {
+        "day": "Tuesday",
+        "period": 7,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Thursday",
+        "period": 7,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "GELA 204 B English as a Second Language 4B": [
+      {
+        "day": "Monday",
+        "period": 7,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Wednesday",
+        "period": 7,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "GEMA 211 Finite Mathematics": [
+      {
+        "day": "Monday",
+        "period": 6,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Wednesday",
+        "period": 6,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Open",
+        "period": "Open",
+        "room": "Open"
+      }
+    ]
+  },
+  "timestamp": "2025-08-28T15:21:13.300103",
+  "version": "1.0"
+}

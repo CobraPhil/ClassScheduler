@@ -101,6 +101,94 @@ def load_schedule_data():
         print(f"Error loading schedule data: {e}")
         return None
 
+def convert_schedule_to_sessions(schedule, selected_classes):
+    """Convert current_schedule format to session_assignments format"""
+    session_assignments = {}
+    
+    # Initialize empty session assignments for all selected classes
+    for class_name in selected_classes:
+        session_assignments[class_name] = []
+    
+    # Process the schedule to extract sessions
+    for day in schedule:
+        for period_str in schedule[day]:
+            for class_session in schedule[day][period_str]:
+                class_name = class_session['Class']
+                room = class_session.get('room', 'Open')
+                period = int(period_str) if str(period_str).isdigit() else period_str
+                
+                # Add this session to the class's session list
+                if class_name in session_assignments:
+                    session_assignments[class_name].append({
+                        'day': day,
+                        'period': period,
+                        'room': room
+                    })
+    
+    return session_assignments
+
+def update_current_schedule_with_move(class_name, session_index, new_day, new_period, session_assignments):
+    """Update the current_schedule global variable with a moved session"""
+    global current_schedule
+    if not current_schedule:
+        return
+    
+    # Find and store the session template before removing it
+    session_template = None
+    sessions_found = 0
+    
+    # First pass: find the template and count total sessions
+    for day in current_schedule:
+        for period_str in current_schedule[day]:
+            for class_session in current_schedule[day][period_str]:
+                if class_session['Class'] == class_name:
+                    if session_template is None:
+                        session_template = class_session.copy()
+                    sessions_found += 1
+    
+    if session_template is None:
+        print(f"SCHEDULE UPDATE: Could not find template for {class_name}")
+        return
+    
+    # Remove only the specific session we're moving (the Nth occurrence where N = session_index)
+    sessions_removed = 0
+    removed_successfully = False
+    
+    for day in list(current_schedule.keys()):
+        if removed_successfully:
+            break
+        for period_str in list(current_schedule[day].keys()):
+            if removed_successfully:
+                break
+            # Create a copy to avoid modification during iteration
+            classes_in_period = current_schedule[day][period_str][:]
+            for i, class_session in enumerate(classes_in_period):
+                if class_session['Class'] == class_name:
+                    if sessions_removed == session_index:
+                        # This is the session we want to move
+                        current_schedule[day][period_str].pop(i)
+                        removed_successfully = True
+                        print(f"SCHEDULE UPDATE: Removed {class_name} session {session_index} from {day} P{period_str}")
+                        break
+                    else:
+                        sessions_removed += 1
+    
+    # Add the session to the new location
+    new_period_str = str(new_period)
+    if new_day not in current_schedule:
+        current_schedule[new_day] = {}
+    if new_period_str not in current_schedule[new_day]:
+        current_schedule[new_day][new_period_str] = []
+    
+    # Create new session with updated room info
+    new_session = session_template.copy()
+    if class_name in session_assignments and session_index < len(session_assignments[class_name]):
+        session = session_assignments[class_name][session_index]
+        new_session['room'] = session.get('room', 'Open')
+    
+    current_schedule[new_day][new_period_str].append(new_session)
+    print(f"SCHEDULE UPDATE: Added {class_name} session {session_index} to {new_day} P{new_period}")
+
 def clean_text_data(text):
     """Clean text data by removing leading/trailing spaces, double spaces, and normalizing"""
     if not text:
@@ -1723,6 +1811,76 @@ def generate_schedule():
                     response_data['partial_schedule'] = True
                     response_data['has_manual_conflicts'] = True
             
+            # CRITICAL FIX: Convert the generated schedule back to session_assignments format
+            # This ensures drag/drop conflict detection uses the current schedule data
+            updated_session_assignments = {}
+            
+            for class_name in selected_classes:
+                # Initialize session assignments for each selected class
+                class_info = None
+                for cls in classes_to_schedule:
+                    if cls['Class'] == class_name:
+                        class_info = cls
+                        break
+                
+                if class_info:
+                    # Calculate expected number of sessions based on units
+                    units = class_info.get('Units', 0)
+                    if isinstance(units, str):
+                        try:
+                            units = int(units)
+                        except ValueError:
+                            units = 0
+                    
+                    # Determine number of sessions (4 units = 1 session, 8 units = 2 sessions, etc.)
+                    num_sessions = max(1, units // 4) if units > 0 else 3  # Default to 3 if unknown
+                    
+                    # Initialize with empty sessions
+                    updated_session_assignments[class_name] = []
+                    for i in range(num_sessions):
+                        updated_session_assignments[class_name].append({
+                            'day': 'Open',
+                            'period': 'Open', 
+                            'room': 'Open'
+                        })
+            
+            # Now populate with actual scheduled sessions
+            for day in enhanced_schedule:
+                for period_str in enhanced_schedule[day]:
+                    period = int(period_str) if str(period_str).isdigit() else period_str
+                    for class_session in enhanced_schedule[day][period_str]:
+                        class_name = class_session['Class']
+                        room = class_session.get('room', 'Open')
+                        
+                        # Find the first available session slot for this class
+                        if class_name in updated_session_assignments:
+                            for session_idx, session in enumerate(updated_session_assignments[class_name]):
+                                if session['day'] == 'Open' and session['period'] == 'Open':
+                                    updated_session_assignments[class_name][session_idx] = {
+                                        'day': day,
+                                        'period': period,
+                                        'room': room
+                                    }
+                                    break
+            
+            # Update the global session assignments and save to file
+            manual_session_assignments = updated_session_assignments
+            
+            # Save updated session assignments to file
+            schedule_data = load_schedule_data() or {}
+            schedule_data['selected_classes'] = selected_classes
+            schedule_data['session_assignments'] = updated_session_assignments
+            schedule_data['timestamp'] = datetime.now().isoformat()
+            schedule_data['version'] = '1.0'
+            
+            with open('last_schedule.json', 'w') as f:
+                json.dump(schedule_data, f, indent=2)
+            
+            print(f"SYNC DEBUG: Updated session_assignments with {len(updated_session_assignments)} classes")
+            for class_name, sessions in updated_session_assignments.items():
+                scheduled_sessions = [s for s in sessions if s['day'] != 'Open']
+                print(f"  {class_name}: {len(scheduled_sessions)} scheduled sessions out of {len(sessions)} total")
+            
             return jsonify(response_data)
         else:
             # Only return failure if NO classes could be scheduled
@@ -1781,7 +1939,15 @@ def set_selection():
     try:
         data = request.get_json()
         selected_classes = data.get('selected_classes', [])
-        manual_session_assignments = data.get('session_assignments', {})
+        all_session_assignments = data.get('session_assignments', {})
+        
+        # Filter session assignments to only include selected classes
+        selected_classes_set = set(selected_classes)
+        manual_session_assignments = {
+            class_name: sessions 
+            for class_name, sessions in all_session_assignments.items()
+            if class_name in selected_classes_set
+        }
         
         # DEBUG: Log what's being received from frontend
         print("DEBUG SET_SELECTION: Received data from frontend:")
@@ -2190,11 +2356,35 @@ def export_pdf():
                         room_name = class_info.get('room_abbreviated', class_info.get('room', 'TBD'))
                         # Escape teacher name for safe HTML attributes
                         escaped_teacher = class_info.get('Teacher', '').replace('"', '&quot;').replace("'", '&#39;')
+                        
+                        # Determine if this is a single-session class for drag & drop
+                        class_units = class_info.get('Units', '8')
+                        frequency = get_class_frequency(class_units)
+                        is_single_session = (frequency == 1)
+                        
+                        # Escape class name for data attributes
+                        escaped_class_name = class_info.get('Class', '').replace('"', '&quot;').replace("'", '&#39;')
+                        
+                        # Build CSS classes and attributes
+                        css_classes = "class-block clickable-class"
+                        drag_attrs = ""
+                        cursor_style = "cursor: pointer;"
+                        
+                        if is_single_session:
+                            css_classes += " draggable-class"
+                            drag_attrs = f'draggable="true" data-class-name="{escaped_class_name}" data-current-day="{day}" data-current-period="{period_num}"'
+                            cursor_style = "cursor: grab;"
+                        else:
+                            css_classes += " multi-session-class"
+                        
                         complete_html += f"""
-                        <div class="class-block clickable-class" data-teacher="{escaped_teacher}" style="cursor: pointer;">
-                            <div class="class-title" style="background-color: {class_color_data['header']}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">{class_info.get('Class', '')}</div>
+                        <div class="{css_classes}" data-teacher="{escaped_teacher}" {drag_attrs} style="{cursor_style}">
+                            <div class="class-title" style="background-color: {class_color_data['header']}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">
+                                {class_info.get('Class', '')}
+                                {'<span style="float: right; font-size: 8px; opacity: 0.8;">📌</span>' if not is_single_session else ''}
+                            </div>
                             <div class="class-body" style="background-color: {class_color_data['body']}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;">
-                                <div class="class-details" style="color: white;"><strong>{teacher_name}</strong> • {room_name} • {class_info.get('student_count', 0)} students</div>
+                                <div class="class-details" style="color: white;"><strong>{teacher_name}</strong> • <span class="room-indicator">{room_name}</span> • {class_info.get('student_count', 0)} students</div>
                             </div>
                         </div>"""
                 complete_html += "</td>"
@@ -2332,6 +2522,437 @@ def export_pdf():
         error_msg = f'PDF generation failed: {str(e)}'
         print(f"Returning error: {error_msg}")  # Debug
         return jsonify({'success': False, 'error': error_msg})
+
+# Drag and Drop API Endpoints
+@app.route('/api/get_valid_slots', methods=['POST'])
+def get_valid_slots():
+    """Get valid time slots for dragging an individual class session"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
+        
+        class_name = data.get('class_name')
+        session_index = data.get('session_index', 0)  # New parameter for session index
+        current_day = data.get('current_day')
+        current_period = data.get('current_period')
+        
+        print(f"DEBUG GET_VALID_SLOTS: Checking valid slots for {class_name} session {session_index}")
+        print(f"DEBUG GET_VALID_SLOTS: Current position: {current_day} P{current_period}")
+        
+        if not class_name:
+            return jsonify({'success': False, 'error': 'Class name required'})
+        
+        # Use current generated schedule instead of saved session assignments
+        global classes_data, current_schedule, selected_classes
+        if not current_schedule:
+            return jsonify({'success': False, 'error': 'No generated schedule found. Please generate a schedule first.'})
+        
+        if not classes_data:
+            return jsonify({'success': False, 'error': 'No classes data available'})
+        
+        # Find the specific class
+        class_info = None
+        for cls in classes_data:
+            if clean_text_data(cls['Class']) == class_name:
+                class_info = cls
+                break
+        
+        if not class_info:
+            return jsonify({'success': False, 'error': f'Class {class_name} not found'})
+        
+        # Get current session assignments from the generated schedule
+        filtered_session_assignments = convert_schedule_to_sessions(current_schedule, selected_classes)
+        print(f"DEBUG INITIAL SESSION ASSIGNMENTS: {filtered_session_assignments}")
+        print(f"DEBUG CURRENT_SCHEDULE STRUCTURE: {json.dumps(current_schedule, indent=2)}")
+        
+        # Filter classes_data to only include currently selected classes
+        selected_classes_set = set(selected_classes)
+        filtered_classes_data = [
+            cls for cls in classes_data 
+            if clean_text_data(cls['Class']) in selected_classes_set
+        ]
+        
+        # Find valid slots
+        valid_slots = []
+        for day in DAYS:
+            for period in range(1, 12):  # Include all periods including Period 7b (11)
+                # Skip the current slot
+                if day == current_day and period == current_period:
+                    continue
+                
+                # Test if this session can be placed here
+                # Use filtered_session_assignments as the base, not scheduler.manual_session_assignments
+                temp_assignments = {}
+                for cls, sessions in filtered_session_assignments.items():
+                    temp_assignments[cls] = [dict(session) for session in sessions]  # Deep copy
+                
+                if class_name in temp_assignments and len(temp_assignments[class_name]) > session_index:
+                    # Update only the specific session being dragged
+                    temp_assignments[class_name][session_index] = {'day': day, 'period': period, 'room': 'Open'}
+                else:
+                    # Class not in schedule yet, create new session
+                    temp_assignments[class_name] = [{'day': day, 'period': period, 'room': 'Open'}]
+                
+                # Create temporary scheduler with new assignment to test conflicts
+                temp_scheduler = ClassScheduler(classes_data)
+                temp_scheduler.manual_session_assignments = temp_assignments
+                
+                # Check for conflicts at this slot using direct session assignment checking
+                # Pass the temp_assignments which includes the proposed move to properly detect conflicts
+                print(f"DEBUG TEMP_ASSIGNMENTS for {day} P{period}: {temp_assignments}")
+                conflicts = check_slot_conflicts_directly(filtered_classes_data, temp_assignments, day, period, class_name, session_index, current_day, current_period)
+                
+                slot_info = {
+                    'day': day,
+                    'period': period,
+                    'slot_id': f"{day}-{period}",
+                    'valid': len(conflicts) == 0,
+                    'conflicts': conflicts
+                }
+                valid_slots.append(slot_info)
+        
+        return jsonify({'success': True, 'valid_slots': valid_slots})
+        
+    except Exception as e:
+        print(f"Error in get_valid_slots: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/move_class', methods=['POST'])  
+def move_class():
+    """Move an individual class session to a new time slot"""
+    # Access global variables
+    global classes_data, manual_session_assignments
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'})
+        
+        class_name = data.get('class_name')
+        session_index = data.get('session_index', 0)  # New parameter for session index
+        new_day = data.get('new_day')
+        new_period = data.get('new_period')
+        current_day = data.get('current_day')
+        current_period = data.get('current_period')
+        print(f"MOVE_CLASS DEBUG: Moving {class_name} session {session_index}")
+        print(f"MOVE_CLASS DEBUG: FROM {current_day} P{current_period} TO {new_day} P{new_period}", flush=True)
+        
+        if not all([class_name, new_day, new_period is not None]):
+            return jsonify({'success': False, 'error': 'Missing required parameters'})
+        
+        # Use the current generated schedule data instead of saved session assignments
+        global current_schedule
+        if not current_schedule:
+            return jsonify({'success': False, 'error': 'No generated schedule found. Please generate a schedule first.'})
+        
+        # Convert current_schedule to session assignments format for manipulation
+        session_assignments = convert_schedule_to_sessions(current_schedule, selected_classes)
+        if class_name not in session_assignments:
+            session_assignments[class_name] = []
+        
+        # Ensure we have enough sessions for the session_index
+        while len(session_assignments[class_name]) <= session_index:
+            session_assignments[class_name].append({'day': 'Open', 'period': 'Open', 'room': 'Open'})
+        
+        # Store original session assignment for potential rollback
+        original_session = dict(session_assignments[class_name][session_index])
+        print(f"MOVE_CLASS DEBUG: Original session: {original_session}")
+        
+        # Update only the specific session being moved
+        session_assignments[class_name][session_index] = {'day': new_day, 'period': int(new_period), 'room': 'Open'}
+        print(f"MOVE_CLASS DEBUG: Updated session assignments")
+        
+        # Check for duplicate classes in the same slot (post-drop validation)
+        print(f"MOVE_CLASS DEBUG: Starting post-drop validation for {class_name} session {session_index} to {new_day} P{new_period}")
+        print(f"MOVE_CLASS DEBUG: Updated session_assignments: {session_assignments}")
+        duplicate_detected = False
+        sessions_in_target_slot = []
+        
+        for cls_name, sessions in session_assignments.items():
+            for session_idx, session in enumerate(sessions):
+                session_day = session.get('day')
+                session_period = session.get('period')
+                
+                if session_day == new_day and session_period == int(new_period):
+                    sessions_in_target_slot.append({
+                        'class_name': cls_name,
+                        'session_index': session_idx,
+                        'session': session
+                    })
+                    print(f"MOVE_CLASS DEBUG: Found session in target slot: {cls_name} session {session_idx} at {session_day} P{session_period}")
+        
+        print(f"POST-DROP VALIDATION: Found {len(sessions_in_target_slot)} sessions in {new_day} P{new_period}", flush=True)
+        for session_info in sessions_in_target_slot:
+            print(f"  - {session_info['class_name']} session {session_info['session_index']}", flush=True)
+        
+        # Check for duplicate classes (multiple sessions of same class in same slot)
+        class_names_in_slot = [s['class_name'] for s in sessions_in_target_slot]
+        unique_classes = set(class_names_in_slot)
+        
+        if len(class_names_in_slot) > len(unique_classes):
+            # Found duplicates - revert the move
+            print(f"POST-DROP VALIDATION: DUPLICATE DETECTED! Multiple sessions of same class in {new_day} P{new_period}", flush=True)
+            session_assignments[class_name][session_index] = original_session
+            duplicate_detected = True
+        
+        # Also check for teacher conflicts (same teacher in same slot)
+        if not duplicate_detected:
+            # Load classes data if not available globally
+            current_classes_data = classes_data
+            if not current_classes_data:
+                print("POST-DROP VALIDATION: Loading classes data from CSV", flush=True)
+                # Load from test_classes.csv as fallback
+                try:
+                    import csv
+                    from io import StringIO
+                    with open('test_classes.csv', 'r', encoding='utf-8') as f:
+                        csv_content = f.read()
+                        reader = csv.DictReader(StringIO(csv_content))
+                        raw_classes = list(reader)
+                        current_classes_data = []
+                        for class_info in raw_classes:
+                            cleaned_class = clean_csv_data(class_info)
+                            current_classes_data.append(cleaned_class)
+                        print(f"POST-DROP VALIDATION: Loaded {len(current_classes_data)} classes from CSV", flush=True)
+                except Exception as e:
+                    print(f"POST-DROP VALIDATION: Error loading CSV: {e}", flush=True)
+                    current_classes_data = []
+            
+            # Get teacher info for each class in the slot
+            teachers_in_slot = []
+            print(f"POST-DROP VALIDATION: current_classes_data length: {len(current_classes_data)}", flush=True)
+            print(f"POST-DROP VALIDATION: Looking up teachers for {len(sessions_in_target_slot)} sessions", flush=True)
+            for session_info in sessions_in_target_slot:
+                class_name_to_find = session_info['class_name']
+                print(f"POST-DROP VALIDATION: Looking for teacher of '{class_name_to_find}'", flush=True)
+                teacher_found = False
+                for cls in current_classes_data:
+                    if clean_text_data(cls['Class']) == class_name_to_find:
+                        teacher = cls.get('Teacher', '')
+                        teachers_in_slot.append(teacher)
+                        print(f"POST-DROP VALIDATION: Found teacher '{teacher}' for '{class_name_to_find}'", flush=True)
+                        teacher_found = True
+                        break
+                if not teacher_found:
+                    print(f"POST-DROP VALIDATION: No teacher found for '{class_name_to_find}'", flush=True)
+                    print(f"POST-DROP VALIDATION: Available class names: {[clean_text_data(cls['Class']) for cls in current_classes_data[:5]]}", flush=True)
+            
+            unique_teachers = set(teachers_in_slot)
+            print(f"POST-DROP VALIDATION: Teachers in slot: {teachers_in_slot}, unique: {list(unique_teachers)}", flush=True)
+            if len(teachers_in_slot) > len(unique_teachers):
+                print(f"POST-DROP VALIDATION: TEACHER CONFLICT DETECTED! Same teacher has multiple classes in {new_day} P{new_period}", flush=True)
+                session_assignments[class_name][session_index] = original_session
+                duplicate_detected = True
+        
+        # Also check for student conflicts (same student in same slot)
+        if not duplicate_detected:
+            # Get all students for each class in the slot
+            all_students_in_slot = []
+            print(f"POST-DROP VALIDATION: Checking for student conflicts among {len(sessions_in_target_slot)} sessions", flush=True)
+            for session_info in sessions_in_target_slot:
+                class_name_to_find = session_info['class_name']
+                for cls in current_classes_data:
+                    if clean_text_data(cls['Class']) == class_name_to_find:
+                        students_str = cls.get('Students', '')
+                        if students_str:
+                            # Split student list and clean each student name
+                            students = [s.strip() for s in str(students_str).split(';') if s.strip()]
+                            all_students_in_slot.extend(students)
+                            print(f"POST-DROP VALIDATION: Found {len(students)} students for '{class_name_to_find}': {students[:3]}{'...' if len(students) > 3 else ''}", flush=True)
+                        break
+            
+            # Check for duplicate students
+            unique_students = set(all_students_in_slot)
+            print(f"POST-DROP VALIDATION: Total students in slot: {len(all_students_in_slot)}, unique: {len(unique_students)}", flush=True)
+            if len(all_students_in_slot) > len(unique_students):
+                print(f"POST-DROP VALIDATION: STUDENT CONFLICT DETECTED! Same student has multiple classes in {new_day} P{new_period}", flush=True)
+                session_assignments[class_name][session_index] = original_session
+                duplicate_detected = True
+        
+        if duplicate_detected:
+            # Save the reverted schedule
+            schedule_data = load_schedule_data() or {}
+            schedule_data['selected_classes'] = selected_classes
+            schedule_data['session_assignments'] = session_assignments
+            schedule_data['timestamp'] = datetime.now().isoformat()
+            schedule_data['version'] = '1.0'
+            
+            with open('last_schedule.json', 'w') as f:
+                json.dump(schedule_data, f, indent=2)
+            
+            return jsonify({
+                'success': False, 
+                'error': 'Cannot place multiple sessions with the same teacher or student in the same time slot. Move reverted.'
+            })
+        
+        # Update the current_schedule with the new session position
+        update_current_schedule_with_move(class_name, session_index, new_day, new_period, session_assignments)
+        
+        # Update the global manual session assignments 
+        global manual_session_assignments
+        manual_session_assignments = session_assignments
+        
+        # Save the successful move to JSON file
+        schedule_data = load_schedule_data() or {}
+        schedule_data['selected_classes'] = selected_classes
+        schedule_data['session_assignments'] = session_assignments
+        schedule_data['timestamp'] = datetime.now().isoformat()
+        schedule_data['version'] = '1.0'
+        
+        with open('last_schedule.json', 'w') as f:
+            json.dump(schedule_data, f, indent=2)
+        
+        print(f"MOVE_CLASS DEBUG: Successfully moved {class_name} session {session_index} to {new_day} P{new_period}")
+        print(f"MOVE_CLASS DEBUG: Saved updated session assignments to JSON file")
+        
+        # Get room assignment for the new slot
+        class_info = None
+        for cls in classes_data:
+            if clean_text_data(cls['Class']) == class_name:
+                class_info = cls
+                break
+        
+        room_assignment = 'TBD'
+        room_conflict = False
+        
+        if class_info:
+            # Use existing room assignment logic
+            scheduler = ClassScheduler([class_info])
+            assigned_room_type = scheduler.assign_room(class_info)
+            
+            if assigned_room_type == 'computer_lab':
+                room_assignment = 'Computer Lab'
+            elif assigned_room_type == 'chapel':
+                room_assignment = 'Chapel'
+            else:
+                room_assignment = 'Classroom 2'  # Default for now
+            
+            # Check for room conflicts (simplified)
+            # In a real implementation, you'd check against other classes in this slot
+            # For now, just return the assignment
+        
+        return jsonify({
+            'success': True,
+            'new_assignment': {
+                'day': new_day,
+                'period': new_period,
+                'room': room_assignment,
+                'room_conflict': room_conflict
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error in move_class: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)})
+
+def check_slot_conflicts(scheduler, class_info, day, period):
+    """Check for conflicts when placing a class in a specific slot"""
+    conflicts = []
+    
+    if day in scheduler.schedule and period in scheduler.schedule[day]:
+        existing_classes = scheduler.schedule[day][period]
+        
+        for existing_class in existing_classes:
+            class_conflicts = scheduler.check_conflicts(class_info, existing_class)
+            if class_conflicts:
+                for conflict in class_conflicts:
+                    if conflict['type'] == 'teacher':
+                        conflicts.append(f"Teacher conflict with {existing_class['Class']}")
+                    elif conflict['type'] == 'student':
+                        student_names = ', '.join(conflict.get('shared_students', [])[:3])  # Show first 3
+                        conflicts.append(f"Student conflict with {existing_class['Class']} ({student_names})")
+    
+    return conflicts
+
+def check_slot_conflicts_directly(classes_data, session_assignments, target_day, target_period, dragged_class_name, dragged_session_index, current_day=None, current_period=None):
+    """Check for conflicts by directly examining session assignments rather than scheduler state"""
+    print(f"DEBUG DIRECT CONFLICT: Checking {target_day} P{target_period} for {dragged_class_name}")
+    print(f"DEBUG DIRECT CONFLICT: Dragged from {current_day} P{current_period}")
+    conflicts = []
+    
+    # Get the class info for the dragged class
+    dragged_class_info = None
+    for cls in classes_data:
+        if clean_text_data(cls['Class']) == dragged_class_name:
+            dragged_class_info = cls
+            break
+    
+    if not dragged_class_info:
+        print(f"DEBUG DIRECT CONFLICT: Could not find class info for {dragged_class_name}")
+        return conflicts
+    
+    print(f"DEBUG DIRECT CONFLICT: Found dragged class: {dragged_class_info['Teacher']}")
+    
+    # Check all sessions in the target slot - but exclude the one being moved
+    sessions_found_in_slot = 0
+    for class_name, sessions in session_assignments.items():
+        for session_idx, session in enumerate(sessions):
+            session_day = session.get('day')
+            session_period = session.get('period')
+            
+            # Skip if this is not in the target slot
+            if session_day != target_day or session_period != target_period:
+                continue
+                
+            # NEW LOGIC: Skip the session being moved FROM its current position
+            # This is the key fix - if we're moving from current_day/current_period to target_day/target_period,
+            # and we find a session in the target that's from the same class and same current position, skip it
+            if (class_name == dragged_class_name and 
+                session_day == current_day and session_period == current_period and
+                target_day != current_day or target_period != current_period):
+                print(f"DEBUG DIRECT CONFLICT: Skipping the session being moved FROM {current_day} P{current_period}")
+                continue
+            
+            sessions_found_in_slot += 1
+            print(f"DEBUG DIRECT CONFLICT: Found session in target slot: {class_name} at {session_day} P{session_period}")
+                
+            # Find the class info for this conflicting class
+            conflicting_class_info = None
+            for cls in classes_data:
+                if clean_text_data(cls['Class']) == class_name:
+                    conflicting_class_info = cls
+                    break
+            
+            if conflicting_class_info:
+                print(f"DEBUG DIRECT CONFLICT: Comparing teachers: {dragged_class_info['Teacher']} vs {conflicting_class_info['Teacher']}")
+                
+                # Check for teacher conflicts
+                if dragged_class_info['Teacher'] == conflicting_class_info['Teacher']:
+                    conflicts.append(f"Teacher conflict with {class_name}")
+                    print(f"DEBUG DIRECT CONFLICT: TEACHER CONFLICT DETECTED - {dragged_class_info['Teacher']}")
+                
+                # Check for student conflicts
+                dragged_students = set([s.strip() for s in dragged_class_info['Students'].split(';') if s.strip()])
+                conflicting_students = set([s.strip() for s in conflicting_class_info['Students'].split(';') if s.strip()])
+                shared_students = dragged_students.intersection(conflicting_students)
+                
+                if shared_students:
+                    student_names = ', '.join(list(shared_students)[:6])
+                    conflicts.append(f"Student conflict with {class_name} ({student_names})")
+                    print(f"DEBUG DIRECT CONFLICT: STUDENT CONFLICT DETECTED - {len(shared_students)} shared students")
+    
+    print(f"DEBUG DIRECT CONFLICT: Found {sessions_found_in_slot} sessions in slot, {len(conflicts)} conflicts detected")
+    return conflicts
+
+def get_class_frequency(units):
+    """Helper function to determine class frequency"""
+    try:
+        units = int(float(units))
+        if units == 4:
+            return 1
+        elif units == 8:
+            return 2
+        elif units == 12:
+            return 3
+        else:
+            return 1
+    except:
+        return 1
 
 if __name__ == '__main__':
     # Get port from environment (Render sets this)
