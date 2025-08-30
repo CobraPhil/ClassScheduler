@@ -25,54 +25,6 @@
     "GEMA 211 Finite Mathematics"
   ],
   "session_assignments": {
-    "GEHU 102 History of Civilization II": [
-      {
-        "day": "Monday",
-        "period": 4,
-        "room": "Classroom 6"
-      },
-      {
-        "day": "Thursday",
-        "period": 2,
-        "room": "Classroom 6"
-      }
-    ],
-    "EDPD 103 Classroom Management": [
-      {
-        "day": "Monday",
-        "period": 5,
-        "room": "Classroom 6"
-      },
-      {
-        "day": "Thursday",
-        "period": 5,
-        "room": "Classroom 6"
-      }
-    ],
-    "BTCM 306 P Christian Biographies": [
-      {
-        "day": "Monday",
-        "period": 6,
-        "room": "Classroom 4"
-      },
-      {
-        "day": "Thursday",
-        "period": 6,
-        "room": "Classroom 4"
-      }
-    ],
-    "BTCM 306 E Christian Biographies": [
-      {
-        "day": "Monday",
-        "period": 1,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Thursday",
-        "period": 1,
-        "room": "Classroom 5"
-      }
-    ],
     "BBTTS 204 E Cults and Churches": [
       {
         "day": "Monday",
@@ -203,6 +155,30 @@
         "room": "Classroom 4"
       }
     ],
+    "BTCM 306 E Christian Biographies": [
+      {
+        "day": "Monday",
+        "period": 1,
+        "room": "Classroom 5"
+      },
+      {
+        "day": "Thursday",
+        "period": 1,
+        "room": "Classroom 5"
+      }
+    ],
+    "BTCM 306 P Christian Biographies": [
+      {
+        "day": "Monday",
+        "period": 6,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Thursday",
+        "period": 6,
+        "room": "Classroom 4"
+      }
+    ],
     "BTCM 403 E Pastoral Counseling": [
       {
         "day": "Monday",
@@ -251,6 +227,18 @@
         "room": "Classroom 4"
       }
     ],
+    "EDPD 103 Classroom Management": [
+      {
+        "day": "Monday",
+        "period": 5,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Thursday",
+        "period": 5,
+        "room": "Classroom 6"
+      }
+    ],
     "Education Math exam 2020": [
       {
         "day": "Wednesday",
@@ -268,6 +256,18 @@
         "day": "Friday",
         "period": 5,
         "room": "Computer Lab"
+      }
+    ],
+    "GEHU 102 History of Civilization II": [
+      {
+        "day": "Monday",
+        "period": 4,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Thursday",
+        "period": 2,
+        "room": "Classroom 6"
       }
     ],
     "GELA 203 B English as a Second Language 3": [
@@ -307,6 +307,6 @@
       }
     ]
   },
-  "timestamp": "2025-08-29T12:06:14.584841",
+  "timestamp": "2025-08-30T11:08:06.440723",
   "version": "1.0"
 }

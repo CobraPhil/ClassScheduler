@@ -1480,6 +1480,9 @@
             .then(data => {
                 if (data.success) {
                     validSlots = data.valid_slots;
+                    console.log('DEBUG: Received valid slots from backend:', validSlots.length, 'total slots');
+                    console.log('DEBUG: Valid slots:', validSlots.filter(slot => slot.valid).map(slot => `${slot.day} P${slot.period}`));
+                    console.log('DEBUG: Invalid slots:', validSlots.filter(slot => !slot.valid).map(slot => `${slot.day} P${slot.period} (${slot.conflicts.join(', ')})`));
                     highlightValidSlots();
                 } else {
                     console.error('Failed to get valid slots:', data.error);
@@ -1562,8 +1565,15 @@
                 slot.day === newDay && slot.period == newPeriod
             );
             
+            console.log('DEBUG: Looking for slot:', newDay, 'P' + newPeriod);
+            console.log('DEBUG: Found valid slot:', validSlot);
+            console.log('DEBUG: Total validSlots available:', validSlots.length);
+            console.log('DEBUG: All validSlots:', validSlots.map(s => `${s.day} P${s.period} (${s.valid ? 'VALID' : 'INVALID'})`));
+            
             if (!validSlot || !validSlot.valid) {
-                showAlert('Cannot move session to this location due to conflicts', 'error');
+                const reason = !validSlot ? 'slot not found in valid slots list' : 'slot marked as invalid due to conflicts: ' + validSlot.conflicts.join(', ');
+                console.log('DEBUG: Drop rejected because:', reason);
+                showAlert(`Cannot move session to this location due to conflicts (${reason})`, 'error');
                 cleanupDragState();
                 return;
             }

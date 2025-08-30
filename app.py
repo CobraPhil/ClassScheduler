@@ -1813,73 +1813,99 @@ def generate_schedule():
             
             # CRITICAL FIX: Convert the generated schedule back to session_assignments format
             # This ensures drag/drop conflict detection uses the current schedule data
-            updated_session_assignments = {}
+            updated_session_assignments = None
             
-            for class_name in selected_classes:
-                # Initialize session assignments for each selected class
-                class_info = None
-                for cls in classes_to_schedule:
-                    if cls['Class'] == class_name:
-                        class_info = cls
-                        break
+            # Only create new session assignments if we don't already have valid ones
+            if success and not manual_session_assignments:
+                updated_session_assignments = {}
                 
-                if class_info:
-                    # Calculate expected number of sessions based on units
-                    units = class_info.get('Units', 0)
-                    if isinstance(units, str):
-                        try:
-                            units = int(units)
-                        except ValueError:
-                            units = 0
+                for class_name in selected_classes:
+                    # Initialize session assignments for each selected class
+                    class_info = None
+                    for cls in classes_to_schedule:
+                        if cls['Class'] == class_name:
+                            class_info = cls
+                            break
                     
-                    # Determine number of sessions (4 units = 1 session, 8 units = 2 sessions, etc.)
-                    num_sessions = max(1, units // 4) if units > 0 else 3  # Default to 3 if unknown
-                    
-                    # Initialize with empty sessions
-                    updated_session_assignments[class_name] = []
-                    for i in range(num_sessions):
-                        updated_session_assignments[class_name].append({
-                            'day': 'Open',
-                            'period': 'Open', 
-                            'room': 'Open'
-                        })
-            
-            # Now populate with actual scheduled sessions
-            for day in enhanced_schedule:
-                for period_str in enhanced_schedule[day]:
-                    period = int(period_str) if str(period_str).isdigit() else period_str
-                    for class_session in enhanced_schedule[day][period_str]:
-                        class_name = class_session['Class']
-                        room = class_session.get('room', 'Open')
+                    if class_info:
+                        # Calculate expected number of sessions based on units
+                        units = class_info.get('Units', 0)
+                        # Also check lowercase 'units' for compatibility
+                        if units == 0:
+                            units = class_info.get('units', 0)
+                        if isinstance(units, str):
+                            try:
+                                units = int(float(units))  # Handle float strings like "8.0"
+                            except ValueError:
+                                units = 0
                         
-                        # Find the first available session slot for this class
-                        if class_name in updated_session_assignments:
-                            for session_idx, session in enumerate(updated_session_assignments[class_name]):
-                                if session['day'] == 'Open' and session['period'] == 'Open':
-                                    updated_session_assignments[class_name][session_idx] = {
-                                        'day': day,
-                                        'period': period,
-                                        'room': room
-                                    }
-                                    break
+                        # Determine number of sessions based on credit hours
+                        if units == 4:
+                            num_sessions = 1
+                        elif units == 8:
+                            num_sessions = 2  
+                        elif units == 12:
+                            num_sessions = 3
+                        else:
+                            # Stop processing and return error for invalid credit hours
+                            error_msg = f"ERROR: Invalid credit hours ({units}) for class '{class_name}'. Only 4, 8, or 12 credit hours are supported."
+                            print(error_msg)
+                            # Don't overwrite manual_session_assignments on error
+                            return jsonify({
+                                'success': False,
+                                'error': error_msg,
+                                'schedule': None
+                            })
+                        
+                        # Initialize with empty list - we'll only add actually scheduled sessions
+                        updated_session_assignments[class_name] = []
             
-            # Update the global session assignments and save to file
-            manual_session_assignments = updated_session_assignments
+            # Now populate with actual scheduled sessions (only if we created new session assignments)
+            if updated_session_assignments is not None:
+                for day in enhanced_schedule:
+                    for period_str in enhanced_schedule[day]:
+                        period = int(period_str) if str(period_str).isdigit() else period_str
+                        for class_session in enhanced_schedule[day][period_str]:
+                            class_name = class_session['Class']
+                            room = class_session.get('room', 'Open')
+                            
+                            # Find the first available session slot for this class
+                            if class_name in updated_session_assignments:
+                                for session_idx, session in enumerate(updated_session_assignments[class_name]):
+                                    if session['day'] == 'Open' and session['period'] == 'Open':
+                                        updated_session_assignments[class_name][session_idx] = {
+                                            'day': day,
+                                            'period': period,
+                                            'room': room
+                                        }
+                                        break
             
-            # Save updated session assignments to file
-            schedule_data = load_schedule_data() or {}
-            schedule_data['selected_classes'] = selected_classes
-            schedule_data['session_assignments'] = updated_session_assignments
+            # Update the global session assignments and save to file only if we created new ones
+            if updated_session_assignments is not None:
+                manual_session_assignments = updated_session_assignments
+                
+                # Save updated session assignments to file
+                schedule_data = load_schedule_data() or {}
+                schedule_data['selected_classes'] = selected_classes
+                schedule_data['session_assignments'] = updated_session_assignments
+            else:
+                # Save existing manual session assignments
+                schedule_data = load_schedule_data() or {}
+                schedule_data['selected_classes'] = selected_classes
+                schedule_data['session_assignments'] = manual_session_assignments
             schedule_data['timestamp'] = datetime.now().isoformat()
             schedule_data['version'] = '1.0'
             
             with open('last_schedule.json', 'w') as f:
                 json.dump(schedule_data, f, indent=2)
             
-            print(f"SYNC DEBUG: Updated session_assignments with {len(updated_session_assignments)} classes")
-            for class_name, sessions in updated_session_assignments.items():
-                scheduled_sessions = [s for s in sessions if s['day'] != 'Open']
-                print(f"  {class_name}: {len(scheduled_sessions)} scheduled sessions out of {len(sessions)} total")
+            if updated_session_assignments is not None:
+                print(f"SYNC DEBUG: Updated session_assignments with {len(updated_session_assignments)} classes")
+                for class_name, sessions in updated_session_assignments.items():
+                    scheduled_sessions = [s for s in sessions if s['day'] != 'Open']
+                    print(f"  {class_name}: {len(scheduled_sessions)} scheduled sessions out of {len(sessions)} total")
+            else:
+                print("SYNC DEBUG: No new session assignments created, using existing manual assignments")
             
             return jsonify(response_data)
         else:
@@ -2700,26 +2726,14 @@ def move_class():
         
         # Also check for teacher conflicts (same teacher in same slot)
         if not duplicate_detected:
-            # Load classes data if not available globally
+            # Use uploaded classes data
             current_classes_data = classes_data
             if not current_classes_data:
-                print("POST-DROP VALIDATION: Loading classes data from CSV", flush=True)
-                # Load from test_classes.csv as fallback
-                try:
-                    import csv
-                    from io import StringIO
-                    with open('test_classes.csv', 'r', encoding='utf-8') as f:
-                        csv_content = f.read()
-                        reader = csv.DictReader(StringIO(csv_content))
-                        raw_classes = list(reader)
-                        current_classes_data = []
-                        for class_info in raw_classes:
-                            cleaned_class = clean_csv_data(class_info)
-                            current_classes_data.append(cleaned_class)
-                        print(f"POST-DROP VALIDATION: Loaded {len(current_classes_data)} classes from CSV", flush=True)
-                except Exception as e:
-                    print(f"POST-DROP VALIDATION: Error loading CSV: {e}", flush=True)
-                    current_classes_data = []
+                print("POST-DROP VALIDATION: No classes data available - please upload a CSV file first", flush=True)
+                return jsonify({
+                    'success': False, 
+                    'error': 'No classes data available. Please upload a CSV file first.'
+                })
             
             # Get teacher info for each class in the slot
             teachers_in_slot = []
@@ -2899,13 +2913,11 @@ def check_slot_conflicts_directly(classes_data, session_assignments, target_day,
             if session_day != target_day or session_period != target_period:
                 continue
                 
-            # NEW LOGIC: Skip the session being moved FROM its current position
-            # This is the key fix - if we're moving from current_day/current_period to target_day/target_period,
-            # and we find a session in the target that's from the same class and same current position, skip it
-            if (class_name == dragged_class_name and 
-                session_day == current_day and session_period == current_period and
-                target_day != current_day or target_period != current_period):
-                print(f"DEBUG DIRECT CONFLICT: Skipping the session being moved FROM {current_day} P{current_period}")
+            # Skip the session that was just moved TO this slot (the one we're testing)
+            # When we create temp_assignments, we move the session from old position to new position
+            # So in the target slot, we should find the dragged class session, but we shouldn't count it as a conflict with itself
+            if class_name == dragged_class_name and session_idx == dragged_session_index:
+                print(f"DEBUG DIRECT CONFLICT: Skipping the dragged session itself in the target slot")
                 continue
             
             sessions_found_in_slot += 1
