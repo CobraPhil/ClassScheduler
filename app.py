@@ -1663,8 +1663,12 @@ def generate_schedule():
         else:
             print("SCHEDULE DEBUG: No schedule attribute found on scheduler")
         
-        # Always build enhanced schedule (for both complete and partial schedules)
+        # Always build enhanced schedule (for both complete and partial schedules)  
         enhanced_schedule = {}
+        
+        # Track session indices by counting occurrences of each class as we build the schedule
+        class_session_counters = {}  # {class_name: current_session_index}
+        
         for day in scheduler.schedule:
             enhanced_schedule[day] = {}
             for period in scheduler.schedule[day]:
@@ -1674,7 +1678,14 @@ def generate_schedule():
                     room_key = f"{day}_{period}_{class_info['Class']}"
                     room_name = scheduler.room_assignments.get(room_key, 'TBD')
                     
-                    # Add room info, colors, and abbreviated names to class
+                    # Track session index by counting occurrences
+                    class_name = class_info['Class']
+                    if class_name not in class_session_counters:
+                        class_session_counters[class_name] = 0
+                    session_index = class_session_counters[class_name]
+                    class_session_counters[class_name] += 1
+                    
+                    # Add room info, colors, abbreviated names, and session index to class
                     enhanced_class = class_info.copy()
                     enhanced_class['room'] = room_name
                     enhanced_class['room_abbreviated'] = abbreviate_room_name(room_name)
@@ -1682,6 +1693,7 @@ def generate_schedule():
                     enhanced_class['color_header'] = get_class_color(class_info['Class'], 'header')
                     enhanced_class['color_body'] = get_class_color(class_info['Class'], 'body')
                     enhanced_class['color'] = get_class_color(class_info['Class'], 'primary')  # For backward compatibility
+                    enhanced_class['sessionIndex'] = session_index  # Add session index for drag and drop tracking
                     enhanced_schedule[day][period].append(enhanced_class)
         
         # Save the enhanced schedule with room assignments for PDF export
@@ -1857,8 +1869,14 @@ def generate_schedule():
                                 'schedule': None
                             })
                         
-                        # Initialize with empty list - we'll only add actually scheduled sessions
+                        # Initialize with the correct number of "Open" sessions 
                         updated_session_assignments[class_name] = []
+                        for i in range(num_sessions):
+                            updated_session_assignments[class_name].append({
+                                'day': 'Open',
+                                'period': 'Open', 
+                                'room': 'Open'
+                            })
             
             # Now populate with actual scheduled sessions (only if we created new session assignments)
             if updated_session_assignments is not None:
@@ -1870,10 +1888,17 @@ def generate_schedule():
                             room = class_session.get('room', 'Open')
                             
                             # Find the first available session slot for this class
-                            if class_name in updated_session_assignments:
-                                for session_idx, session in enumerate(updated_session_assignments[class_name]):
+                            # Handle potential trailing spaces in class names
+                            matching_key = None
+                            for key in updated_session_assignments.keys():
+                                if key.strip() == class_name.strip():
+                                    matching_key = key
+                                    break
+                            
+                            if matching_key:
+                                for session_idx, session in enumerate(updated_session_assignments[matching_key]):
                                     if session['day'] == 'Open' and session['period'] == 'Open':
-                                        updated_session_assignments[class_name][session_idx] = {
+                                        updated_session_assignments[matching_key][session_idx] = {
                                             'day': day,
                                             'period': period,
                                             'room': room
@@ -2626,7 +2651,9 @@ def get_valid_slots():
                 
                 # Check for conflicts at this slot using direct session assignment checking
                 # Pass the temp_assignments which includes the proposed move to properly detect conflicts
-                print(f"DEBUG TEMP_ASSIGNMENTS for {day} P{period}: {temp_assignments}")
+                print(f"DEBUG TEMP_ASSIGNMENTS for {day} P{period}: Testing drop of {class_name} session {session_index}")
+                if class_name in temp_assignments:
+                    print(f"DEBUG TEMP_ASSIGNMENTS: {class_name} sessions: {temp_assignments[class_name]}")
                 conflicts = check_slot_conflicts_directly(filtered_classes_data, temp_assignments, day, period, class_name, session_index, current_day, current_period)
                 
                 slot_info = {
@@ -2918,6 +2945,14 @@ def check_slot_conflicts_directly(classes_data, session_assignments, target_day,
             # So in the target slot, we should find the dragged class session, but we shouldn't count it as a conflict with itself
             if class_name == dragged_class_name and session_idx == dragged_session_index:
                 print(f"DEBUG DIRECT CONFLICT: Skipping the dragged session itself in the target slot")
+                continue
+            
+            # CRITICAL FIX: Prevent dropping any session of the same class onto any other session of the same class
+            # This ensures consistent behavior regardless of which session index is being dragged
+            if class_name == dragged_class_name:
+                print(f"DEBUG SAME CLASS FIX: TRIGGERED - dragged={dragged_class_name} session {dragged_session_index} trying to drop on slot with {class_name} session {session_idx}")
+                print(f"DEBUG SAME CLASS FIX: Target slot: {target_day} P{target_period}, contains: {class_name} session {session_idx}")
+                conflicts.append(f"Same class conflict: Cannot drop {dragged_class_name} session {dragged_session_index} onto slot with session {session_idx}")
                 continue
             
             sessions_found_in_slot += 1
