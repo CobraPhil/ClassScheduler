@@ -72,7 +72,7 @@ def save_schedule_data():
         'selected_classes': selected_classes,
         'session_assignments': manual_session_assignments,
         'timestamp': datetime.now().isoformat(),
-        'version': '1.0'
+        'version': '1.1'
     }
     
     try:
@@ -1936,7 +1936,7 @@ def generate_schedule():
                 schedule_data['selected_classes'] = selected_classes
                 schedule_data['session_assignments'] = manual_session_assignments
             schedule_data['timestamp'] = datetime.now().isoformat()
-            schedule_data['version'] = '1.0'
+            schedule_data['version'] = '1.1'
             
             with open('last_schedule.json', 'w') as f:
                 json.dump(schedule_data, f, indent=2)
@@ -2327,14 +2327,14 @@ def export_pdf():
             font-weight: bold;
             text-align: center;
             width: 90px;
-            font-size: 10px; /* Increased for better readability */
+            font-size: 14px; /* Increased to 14px (2 sizes bigger) for better readability */
             line-height: 1.2;
             padding: 8px 4px;
             border: 1px solid #333;
         }}
-        
+
         .period-label small {{
-            font-size: 10px; /* Increased to 10px for better readability */
+            font-size: 12px; /* Increased to 12px (2 sizes bigger) for better readability */
             font-weight: normal;
             color: #666;
             display: block;
@@ -2344,6 +2344,11 @@ def export_pdf():
         /* Compressed height for empty periods */
         .empty-period-row td {{
             height: 25px !important; /* Much smaller for empty periods */
+        }}
+
+        /* Compact height for chapel period */
+        .chapel-period-row td {{
+            height: 35px !important; /* Smaller than normal rows but taller than empty periods */
         }}
         
         .class-teacher {{
@@ -2417,12 +2422,18 @@ def export_pdf():
                 if current_schedule.get(day) and current_schedule[day].get(period_num):
                     period_has_classes = True
                     break
-            
-            # Apply empty-period-row class if no classes in this period
-            row_class = ' class="empty-period-row"' if not period_has_classes else ''
+
+            # Special handling: Period 3 always shows (but compact), all others skip if empty
+            if period_num == 3:
+                row_class = 'class="chapel-period-row"'
+            elif not period_has_classes:
+                continue  # Skip empty periods (except Period 3)
+            else:
+                row_class = ''
+
             period_display = 'Period 7b' if period_num == 11 else f'Period {period_num}'
             complete_html += f"""
-            <tr{row_class}>
+            <tr {row_class}>
                 <td class="period-label {'chapel-period' if period_num == 3 else ''}">
                     {period_display}<br>
                     <small>"""
@@ -2916,7 +2927,7 @@ def move_class():
             schedule_data['selected_classes'] = selected_classes
             schedule_data['session_assignments'] = session_assignments
             schedule_data['timestamp'] = datetime.now().isoformat()
-            schedule_data['version'] = '1.0'
+            schedule_data['version'] = '1.1'
             
             with open('last_schedule.json', 'w') as f:
                 json.dump(schedule_data, f, indent=2)

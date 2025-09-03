@@ -249,12 +249,13 @@
             padding: 15px 10px;
             background: #e9ecef;
             font-weight: bold;
+            font-size: 16px;
             text-align: center;
             border-right: 1px solid #dee2e6;
             line-height: 1.2;
         }
         .period-label small {
-            font-size: 10px;
+            font-size: 12px;
             font-weight: normal;
             color: #666;
             display: block;
@@ -509,7 +510,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>GBBC Class Schedule Generator <sup style="font-size: 0.45em; opacity: 0.85;">Ver. 1.0</sup></h1>
+            <h1>GBBC Class Schedule Generator <sup style="font-size: 0.45em; opacity: 0.85;">Ver. 1.1</sup></h1>
             <p>Generate conflict-free weekly class schedules with room assignments</p>
         </div>
         
@@ -1491,6 +1492,12 @@
         // Drag and Drop Functionality
         let draggedElement = null;
         let validSlots = [];
+
+        // Auto-scrolling configuration
+        let autoScrollTimer = null;
+        const SCROLL_SPEED = 15; // pixels per scroll
+        const SCROLL_ZONE = 60; // pixels from edge to trigger scroll
+        const SCROLL_INTERVAL = 16; // ~60fps scroll updates
         
         // Add event listeners for drag and drop after schedule is displayed
         function initializeDragAndDrop() {
@@ -1594,6 +1601,51 @@
         
         function handleDragOver(e) {
             e.preventDefault(); // Allow drop
+
+            // Auto-scrolling functionality during drag
+            const y = e.clientY; // cursor Y position
+            const viewportHeight = window.innerHeight;
+            const documentHeight = document.documentElement.scrollHeight;
+            const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop;
+
+            // Check if cursor is in scroll trigger zones
+            const nearTop = y < SCROLL_ZONE;
+            const nearBottom = y > viewportHeight - SCROLL_ZONE;
+
+            // Clear any existing auto-scroll timer
+            if (autoScrollTimer) {
+                clearInterval(autoScrollTimer);
+                autoScrollTimer = null;
+            }
+
+            // Start auto-scrolling if near edges and there's scrollable space
+            if (nearTop && currentScrollTop > 0) {
+                // Auto-scroll up
+                autoScrollTimer = setInterval(() => {
+                    const newScrollTop = Math.max(0, currentScrollTop - SCROLL_SPEED);
+                    window.scrollTo({
+                        top: newScrollTop,
+                        behavior: 'smooth'
+                    });
+                    if (newScrollTop === 0) {
+                        clearInterval(autoScrollTimer);
+                        autoScrollTimer = null;
+                    }
+                }, SCROLL_INTERVAL);
+            } else if (nearBottom && currentScrollTop + viewportHeight < documentHeight) {
+                // Auto-scroll down
+                autoScrollTimer = setInterval(() => {
+                    const newScrollTop = Math.min(documentHeight - viewportHeight, currentScrollTop + SCROLL_SPEED);
+                    window.scrollTo({
+                        top: newScrollTop,
+                        behavior: 'smooth'
+                    });
+                    if (newScrollTop >= documentHeight - viewportHeight) {
+                        clearInterval(autoScrollTimer);
+                        autoScrollTimer = null;
+                    }
+                }, SCROLL_INTERVAL);
+            }
         }
         
         function handleDragEnter(e) {
@@ -1735,6 +1787,12 @@
         }
         
         function handleDragEnd(e) {
+            // Clean up auto-scroll timer
+            if (autoScrollTimer) {
+                clearInterval(autoScrollTimer);
+                autoScrollTimer = null;
+            }
+
             // Only reset visual state, don't clean up drag state yet
             // (drag state will be cleaned up after move operation completes)
             if (e.target === draggedElement) {
