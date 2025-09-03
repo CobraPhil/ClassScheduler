@@ -35,8 +35,9 @@ A web-based application for generating conflict-free weekly class schedules with
 
 1. **Upload CSV**: Select your ClassList.csv file
 2. **Select Classes**: Choose which classes to include in the schedule
-3. **Generate Schedule**: Click "Generate Schedule" to create the weekly grid
-4. **Export PDF**: Download the schedule as a professional PDF
+3. **Confirm Selection**: Click "Confirm Selection" to save day/period/room choices
+4. **Generate Schedule**: Create the weekly grid (errors are recalculated fresh each run)
+5. **Export**: Download as PDF (if WeasyPrint installed) or styled HTML fallback
 
 ## Scheduling Rules
 
@@ -82,3 +83,20 @@ Built with Flask (Python) for easy local deployment. The constraint satisfaction
 ## Support
 
 For issues or questions, refer to the CLAUDE.md file for project-specific notes and requirements.
+
+## What's New (Ver. 1.0)
+
+- Drag-and-drop reliability: Moves target the exact session using original day/period and sessionIndex, preventing mis-removals after multiple drags.
+- Room preserved on moves: When dragging a session, its room is kept. Room conflicts are not blocked during drag; they are reported on Generate.
+- Robust conflict checks: Prevents dropping a session onto another session of the same class, even after intermediate moves. Teacher/student conflicts remain blocked.
+- Export parity fixes: Period keys normalized so the exported schedule exactly matches the on-screen grid (e.g., Period 1 vs "1" issues fixed).
+- Room conflict UX: On the schedule grid, conflicting rooms show a red badge; a "Room Conflicts" summary lists all collisions across the week.
+- Export conflict visibility: PDF/HTML export includes a Room Conflicts summary and highlights conflicted class blocks.
+- Fresh error reporting: Generate Schedule clears previous errors/warnings and recomputes new ones; Confirm Selection also clears stale panels.
+- UI: Header shows "Ver. 1.0" superscript to indicate the current version.
+
+## Tips and Notes
+
+- Be sure to click "Confirm Selection" after changing Day/Period/Room in the Select tab so your changes are saved before generating.
+- Drag-and-drop blocks teacher/student conflicts; room conflicts are allowed and surfaced during Generate/Export.
+- WeasyPrint is optional. If not installed, Export will download a styled HTML file instead of a PDF.

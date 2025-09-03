@@ -198,6 +198,40 @@ Available time periods Monday through Friday:
 - **Compact Session Layout**: CSS grid system for clean multi-session display
 - **Session State Management**: `classSessionAssignments` object tracks all session configurations
 - **Dynamic Color Application**: JavaScript applies class colors from backend response to schedule blocks
+
+## Release Notes – Ver. 1.0
+
+This release focuses on drag-and-drop robustness, export parity, and clearer conflict visibility.
+
+### Drag-and-Drop Improvements
+- Precise session targeting: Move operations remove the exact session using original `current_day/current_period` and `sessionIndex`, avoiding mis-removals after multiple drags.
+- Room preservation: Dragged sessions keep their originally assigned room. Room conflicts are not blocked at drag time; they are reported on Generate/Export for manual resolution.
+- Duplicate prevention: Prevents dropping a session onto another session of the same class (even after intermediate moves). Teacher/student conflicts remain blocked.
+- Valid slot checks: `/api/get_valid_slots` resolves the real session index from the current position before simulating potential drops, guaranteeing accurate conflict detection.
+
+### Export Parity and Visibility
+- Period key normalization ensures exported schedules match the on-screen grid (fixes string vs integer period-key mismatches).
+- Room conflict summary included in exports. Each conflict is listed as: `Day Period N — Room used by Class A, Class B`.
+- Per-class conflict highlighting in exports: Conflicted class blocks get a subtle red border for easy print-time auditing.
+
+### UI Enhancements
+- In-grid room conflict badges: The room label turns red with a tooltip when multiple classes share a room in the same slot.
+- Room Conflicts summary: A concise list of conflicts appears under schedule stats after Generate.
+- Fresh errors every run: Generate clears previous errors/warnings and recalculates new ones.
+- Confirm Selection clears stale panels: Saving new day/period/room choices hides old errors to avoid confusion.
+- Version label: The main UI header shows `Ver. 1.0` in a small superscript.
+
+### API Notes (Drag & Drop)
+- `/api/get_valid_slots` request may include `current_day/current_period`; server resolves the actual session index from current position for simulations.
+- `/api/move_class` now accepts `current_day/current_period` along with `class_name`, `session_index`, `new_day`, and `new_period`; the server preserves room and updates the exact session.
+
+### Behavior Summary
+- Teacher/student conflicts: Blocked during drag and on generate.
+- Room conflicts: Allowed during drag; reported on Generate and highlighted in export.
+- Persistence: After each successful move, assignments are saved. Confirm Selection writes the latest assignments; Generate recomputes conflicts from saved state.
+
+### Optional PDF Dependency
+- WeasyPrint is optional. If unavailable, the app exports a styled HTML file instead of PDF.
 - **Color State Management**: `classColors` object maintains color mappings throughout interface
 
 ### API Enhancements
