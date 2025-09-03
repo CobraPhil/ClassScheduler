@@ -127,67 +127,84 @@ def convert_schedule_to_sessions(schedule, selected_classes):
     
     return session_assignments
 
-def update_current_schedule_with_move(class_name, session_index, new_day, new_period, session_assignments):
-    """Update the current_schedule global variable with a moved session"""
+def update_current_schedule_with_move(class_name, session_index, new_day, new_period, session_assignments, current_day=None, current_period=None, preserved_room=None):
+    """Update the current_schedule global variable with a moved session.
+    Targets the exact session (by previous day/period and sessionIndex if available),
+    and preserves the room assignment unless explicitly changed.
+    """
     global current_schedule
     if not current_schedule:
         return
-    
-    # Find and store the session template before removing it
+
+    # Determine where to remove the session from
     session_template = None
-    sessions_found = 0
-    
-    # First pass: find the template and count total sessions
-    for day in current_schedule:
-        for period_str in current_schedule[day]:
-            for class_session in current_schedule[day][period_str]:
-                if class_session['Class'] == class_name:
-                    if session_template is None:
-                        session_template = class_session.copy()
-                    sessions_found += 1
-    
-    if session_template is None:
-        print(f"SCHEDULE UPDATE: Could not find template for {class_name}")
-        return
-    
-    # Remove only the specific session we're moving (the Nth occurrence where N = session_index)
-    sessions_removed = 0
     removed_successfully = False
-    
-    for day in list(current_schedule.keys()):
-        if removed_successfully:
-            break
-        for period_str in list(current_schedule[day].keys()):
+
+    # Prefer precise removal using provided current_day/current_period
+    if current_day and current_period is not None and current_day in current_schedule:
+        for old_key in (current_period, str(current_period)):
+            if old_key in current_schedule[current_day]:
+                period_list = current_schedule[current_day][old_key]
+                for i, class_session in enumerate(list(period_list)):
+                    if class_session.get('Class') == class_name:
+                        # If sessionIndex metadata exists, match it first
+                        if class_session.get('sessionIndex') is not None:
+                            if class_session['sessionIndex'] == session_index:
+                                session_template = class_session.copy()
+                                del current_schedule[current_day][old_key][i]
+                                removed_successfully = True
+                                print(f"SCHEDULE UPDATE: Precisely removed {class_name} session {session_index} from {current_day} P{old_key}")
+                                break
+                        else:
+                            # Fallback: first matching occurrence in that slot
+                            session_template = class_session.copy()
+                            del current_schedule[current_day][old_key][i]
+                            removed_successfully = True
+                            print(f"SCHEDULE UPDATE: Removed {class_name} from {current_day} P{old_key} (no sessionIndex)")
+                            break
+                if removed_successfully:
+                    break
+
+    # Fallback: original Nth-occurrence scan across the schedule
+    if not removed_successfully:
+        sessions_removed = 0
+        for day in list(current_schedule.keys()):
             if removed_successfully:
                 break
-            # Create a copy to avoid modification during iteration
-            classes_in_period = current_schedule[day][period_str][:]
-            for i, class_session in enumerate(classes_in_period):
-                if class_session['Class'] == class_name:
-                    if sessions_removed == session_index:
-                        # This is the session we want to move
-                        current_schedule[day][period_str].pop(i)
-                        removed_successfully = True
-                        print(f"SCHEDULE UPDATE: Removed {class_name} session {session_index} from {day} P{period_str}")
-                        break
-                    else:
+            for period_str in list(current_schedule[day].keys()):
+                if removed_successfully:
+                    break
+                for i, class_session in enumerate(list(current_schedule[day][period_str])):
+                    if class_session.get('Class') == class_name:
+                        if sessions_removed == session_index:
+                            session_template = class_session.copy()
+                            del current_schedule[day][period_str][i]
+                            removed_successfully = True
+                            print(f"SCHEDULE UPDATE: Fallback-removed {class_name} session {session_index} from {day} P{period_str}")
+                            break
                         sessions_removed += 1
-    
-    # Add the session to the new location
-    new_period_str = str(new_period)
+
+    if session_template is None:
+        print(f"SCHEDULE UPDATE: Could not find session to move for {class_name} (index {session_index})")
+        return
+
+    # Prepare new location
+    new_period_key = int(new_period) if isinstance(new_period, (int, float, str)) and str(new_period).isdigit() else new_period
     if new_day not in current_schedule:
         current_schedule[new_day] = {}
-    if new_period_str not in current_schedule[new_day]:
-        current_schedule[new_day][new_period_str] = []
-    
-    # Create new session with updated room info
+    if new_period_key not in current_schedule[new_day]:
+        current_schedule[new_day][new_period_key] = []
+
+    # Create new session with preserved room info
     new_session = session_template.copy()
-    if class_name in session_assignments and session_index < len(session_assignments[class_name]):
-        session = session_assignments[class_name][session_index]
-        new_session['room'] = session.get('room', 'Open')
-    
-    current_schedule[new_day][new_period_str].append(new_session)
-    print(f"SCHEDULE UPDATE: Added {class_name} session {session_index} to {new_day} P{new_period}")
+    desired_room = preserved_room
+    if desired_room is None and class_name in session_assignments and session_index < len(session_assignments[class_name]):
+        desired_room = session_assignments[class_name][session_index].get('room')
+    if desired_room:
+        new_session['room'] = desired_room
+
+    current_schedule[new_day][new_period_key].append(new_session)
+    print(f"SCHEDULE UPDATE: Added {class_name} session {session_index} to {new_day} P{new_period} (room preserved: {new_session.get('room')})")
 
 def clean_text_data(text):
     """Clean text data by removing leading/trailing spaces, double spaces, and normalizing"""
@@ -2113,6 +2130,36 @@ def export_pdf():
     try:
         print("Generating HTML for PDF...")  # Debug
         
+        # Compute room conflicts for export summary
+        def compute_room_conflicts(schedule):
+            conflicts = []
+            display_periods = [1, 2, 3, 4, 5, 6, 7, 11, 8, 9, 10]
+            for day in DAYS:
+                if day not in schedule:
+                    continue
+                for period in display_periods:
+                    classes = schedule.get(day, {}).get(period, [])
+                    if not classes:
+                        continue
+                    room_map = {}
+                    for ci in classes:
+                        room = ci.get('room') or 'TBD'
+                        if room in ('Open', 'TBD'):
+                            continue
+                        room_map.setdefault(room, []).append(ci.get('Class'))
+                    for room, class_list in room_map.items():
+                        if len(class_list) > 1:
+                            conflicts.append({
+                                'day': day,
+                                'period': int(period),
+                                'room': room,
+                                'classes': class_list
+                            })
+            return conflicts
+
+        room_conflicts = compute_room_conflicts(current_schedule)
+        conflict_keys = [f"{item['day']}-{item['period']}-{item['room']}" for item in room_conflicts]
+
         # Generate HTML for PDF
         html_content = render_template('schedule_pdf.html', 
                                      schedule=current_schedule, 
@@ -2120,6 +2167,8 @@ def export_pdf():
                                      days=DAYS,
                                      rooms=ROOMS,
                                      class_colors=class_colors,
+                                     room_conflicts=room_conflicts,
+                                     room_conflict_keys=conflict_keys,
                                      datetime=datetime)
         
         print(f"HTML content length: {len(html_content)}")  # Debug
@@ -2427,14 +2476,18 @@ def export_pdf():
                             cursor_style = "cursor: grab;"
                         else:
                             css_classes += " multi-session-class"
-                        
+                        # Conflict highlight inline style for this class body
+                        _room = class_info.get('room') or 'TBD'
+                        _key = f"{day}-{int(period_num)}-{_room}"
+                        _conflict_style = "border: 2px solid #c0392b; box-shadow: 0 0 0 2px rgba(192,57,43,0.15);" if (_room not in ('Open','TBD') and _key in conflict_keys) else ""
+
                         complete_html += f"""
                         <div class="{css_classes}" data-teacher="{escaped_teacher}" {drag_attrs} style="{cursor_style}">
                             <div class="class-title" style="background-color: {class_color_data['header']}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">
                                 {class_info.get('Class', '')}
                                 {'<span style="float: right; font-size: 8px; opacity: 0.8;">📌</span>' if not is_single_session else ''}
                             </div>
-                            <div class="class-body" style="background-color: {class_color_data['body']}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;">
+                            <div class="class-body" style="background-color: {class_color_data['body']}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white; {_conflict_style}">
                                 <div class="class-details" style="color: white;"><strong>{teacher_name}</strong> • <span class="room-indicator">{room_name}</span> • {class_info.get('student_count', 0)} students</div>
                             </div>
                         </div>"""
@@ -2445,6 +2498,24 @@ def export_pdf():
         complete_html += """
         </tbody>
     </table>
+    """
+
+        # Append room conflict summary if present
+        if room_conflicts:
+            items_html = ''.join([
+                f"<div>• {item['day']} Period {item['period']} — <strong>{item['room']}</strong> used by {', '.join(item['classes'])}</div>"
+                for item in room_conflicts
+            ])
+            complete_html += (
+                "<div style=\"margin-top:10px;\">"
+                "<div style=\"background:#fff3f3;border:1px solid #ffcccc;padding:10px;border-radius:4px;\">"
+                f"<strong style=\"color:#c0392b;\">Room Conflicts: {len(room_conflicts)}</strong>"
+                "</div>"
+                f"<div style=\"font-size:12px;color:#333;padding:8px 0;\">{items_html}</div>"
+                "</div>"
+            )
+
+        complete_html += """
     
     <!-- Teacher filter indicator -->
     <div id="teacherFilterIndicator" style="display: none; margin-top: 15px; padding: 10px; background-color: #e3f2fd; border-radius: 5px; border-left: 4px solid #2196f3;">
@@ -2624,6 +2695,14 @@ def get_valid_slots():
             if clean_text_data(cls['Class']) in selected_classes_set
         ]
         
+        # Resolve the actual session index by matching current position
+        resolved_index = session_index
+        if class_name in filtered_session_assignments:
+            for idx, sess in enumerate(filtered_session_assignments[class_name]):
+                if sess.get('day') == current_day and sess.get('period') == current_period:
+                    resolved_index = idx
+                    break
+
         # Find valid slots
         valid_slots = []
         for day in DAYS:
@@ -2638,9 +2717,9 @@ def get_valid_slots():
                 for cls, sessions in filtered_session_assignments.items():
                     temp_assignments[cls] = [dict(session) for session in sessions]  # Deep copy
                 
-                if class_name in temp_assignments and len(temp_assignments[class_name]) > session_index:
+                if class_name in temp_assignments and len(temp_assignments[class_name]) > resolved_index:
                     # Update only the specific session being dragged
-                    temp_assignments[class_name][session_index] = {'day': day, 'period': period, 'room': 'Open'}
+                    temp_assignments[class_name][resolved_index] = {'day': day, 'period': period, 'room': 'Open'}
                 else:
                     # Class not in schedule yet, create new session
                     temp_assignments[class_name] = [{'day': day, 'period': period, 'room': 'Open'}]
@@ -2654,7 +2733,16 @@ def get_valid_slots():
                 print(f"DEBUG TEMP_ASSIGNMENTS for {day} P{period}: Testing drop of {class_name} session {session_index}")
                 if class_name in temp_assignments:
                     print(f"DEBUG TEMP_ASSIGNMENTS: {class_name} sessions: {temp_assignments[class_name]}")
-                conflicts = check_slot_conflicts_directly(filtered_classes_data, temp_assignments, day, period, class_name, session_index, current_day, current_period)
+                conflicts = check_slot_conflicts_directly(
+                    filtered_classes_data,
+                    temp_assignments,
+                    day,
+                    period,
+                    class_name,
+                    resolved_index,
+                    current_day,
+                    current_period
+                )
                 
                 slot_info = {
                     'day': day,
@@ -2705,17 +2793,26 @@ def move_class():
         session_assignments = convert_schedule_to_sessions(current_schedule, selected_classes)
         if class_name not in session_assignments:
             session_assignments[class_name] = []
-        
-        # Ensure we have enough sessions for the session_index
-        while len(session_assignments[class_name]) <= session_index:
+
+        # Resolve the actual index of the dragged session by matching its current position
+        resolved_index = session_index
+        if current_day and current_period is not None:
+            for idx, sess in enumerate(session_assignments[class_name]):
+                if sess.get('day') == current_day and sess.get('period') == int(current_period):
+                    resolved_index = idx
+                    break
+
+        # Ensure we have enough sessions for the resolved_index
+        while len(session_assignments[class_name]) <= resolved_index:
             session_assignments[class_name].append({'day': 'Open', 'period': 'Open', 'room': 'Open'})
-        
-        # Store original session assignment for potential rollback
-        original_session = dict(session_assignments[class_name][session_index])
+
+        # Store original session assignment for potential rollback and to preserve room
+        original_session = dict(session_assignments[class_name][resolved_index])
         print(f"MOVE_CLASS DEBUG: Original session: {original_session}")
         
-        # Update only the specific session being moved
-        session_assignments[class_name][session_index] = {'day': new_day, 'period': int(new_period), 'room': 'Open'}
+        # Update only the specific session being moved (preserve room)
+        preserved_room = original_session.get('room', 'Open')
+        session_assignments[class_name][resolved_index] = {'day': new_day, 'period': int(new_period), 'room': preserved_room}
         print(f"MOVE_CLASS DEBUG: Updated session assignments")
         
         # Check for duplicate classes in the same slot (post-drop validation)
@@ -2830,51 +2927,31 @@ def move_class():
             })
         
         # Update the current_schedule with the new session position
-        update_current_schedule_with_move(class_name, session_index, new_day, new_period, session_assignments)
+        update_current_schedule_with_move(
+            class_name,
+            resolved_index,
+            new_day,
+            new_period,
+            session_assignments,
+            current_day=current_day,
+            current_period=current_period,
+            preserved_room=preserved_room
+        )
         
         # Update the global manual session assignments 
         global manual_session_assignments
         manual_session_assignments = session_assignments
         
-        # Save the successful move to JSON file
-        schedule_data = load_schedule_data() or {}
-        schedule_data['selected_classes'] = selected_classes
-        schedule_data['session_assignments'] = session_assignments
-        schedule_data['timestamp'] = datetime.now().isoformat()
-        schedule_data['version'] = '1.0'
-        
-        with open('last_schedule.json', 'w') as f:
-            json.dump(schedule_data, f, indent=2)
+        # Save the successful move to JSON file (use central saver)
+        save_schedule_data()
         
         print(f"MOVE_CLASS DEBUG: Successfully moved {class_name} session {session_index} to {new_day} P{new_period}")
         print(f"MOVE_CLASS DEBUG: Saved updated session assignments to JSON file")
         
-        # Get room assignment for the new slot
-        class_info = None
-        for cls in classes_data:
-            if clean_text_data(cls['Class']) == class_name:
-                class_info = cls
-                break
-        
-        room_assignment = 'TBD'
+        # Build response using preserved room; room conflicts will be handled on next generate
+        room_assignment = preserved_room
         room_conflict = False
-        
-        if class_info:
-            # Use existing room assignment logic
-            scheduler = ClassScheduler([class_info])
-            assigned_room_type = scheduler.assign_room(class_info)
-            
-            if assigned_room_type == 'computer_lab':
-                room_assignment = 'Computer Lab'
-            elif assigned_room_type == 'chapel':
-                room_assignment = 'Chapel'
-            else:
-                room_assignment = 'Classroom 2'  # Default for now
-            
-            # Check for room conflicts (simplified)
-            # In a real implementation, you'd check against other classes in this slot
-            # For now, just return the assignment
-        
+
         return jsonify({
             'success': True,
             'new_assignment': {

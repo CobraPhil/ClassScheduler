@@ -234,9 +234,12 @@
                     {% if schedule[day] and schedule[day][period_num] %}
                         {% for class_info in schedule[day][period_num] %}
                         {% set class_color_data = class_colors.get(class_info['Class'], {'header': '#667eea', 'body': '#8a9bf2'}) %}
+                        {% set room_name_for_key = class_info.get('room', 'TBD') %}
+                        {% set conflict_key = day ~ '-' ~ period_num ~ '-' ~ room_name_for_key %}
+                        {% set is_room_conflict = room_name_for_key not in ['Open','TBD'] and (conflict_key in room_conflict_keys) %}
                         <div class="class-block clickable-class" data-teacher="{{ class_info['Teacher'] }}" style="cursor: pointer;">
                             <div class="class-title" style="background-color: {{ class_color_data.header }}; padding: 2px 3px; margin: -3px -3px 0 -3px; border-radius: 3px 3px 0 0; color: white;">{{ class_info['Class'] }}</div>
-                            <div class="class-body" style="background-color: {{ class_color_data.body }}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;">
+                            <div class="class-body" style="background-color: {{ class_color_data.body }}; padding: 1px 3px; margin: 0 -3px -3px -3px; border-radius: 0 0 3px 3px; font-size: 10px; line-height: 1.1; color: white;{% if is_room_conflict %} border: 2px solid #c0392b; box-shadow: 0 0 0 2px rgba(192,57,43,0.15);{% endif %}">
                                 <div class="class-details" style="color: white;"><strong>{{ class_info.get('teacher_abbreviated', class_info['Teacher']) }}</strong> • {{ class_info.get('room_abbreviated', class_info.get('room', 'TBD')) }} • {{ class_info.get('student_count', 0) }} students</div>
                             </div>
                         </div>
@@ -248,6 +251,17 @@
             {% endfor %}
         </tbody>
     </table>
+    
+    {% if room_conflicts and room_conflicts|length > 0 %}
+    <div class="room-legend" style="margin-top: 12px;">
+        <h4 style="color:#c0392b;">Room Conflicts: {{ room_conflicts|length }}</h4>
+        <ul>
+            {% for item in room_conflicts %}
+            <li>{{ item.day }} Period {{ item.period }} — <strong>{{ item.room }}</strong> used by {{ item.classes|join(', ') }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
     
     <!-- Teacher filter indicator -->
     <div id="teacherFilterIndicator" style="display: none; margin-top: 15px; padding: 10px; background-color: #e3f2fd; border-radius: 5px; border-left: 4px solid #2196f3;">

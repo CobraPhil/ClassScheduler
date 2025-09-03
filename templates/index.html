@@ -961,6 +961,16 @@
                 });
                 
                 const result = await response.json();
+
+                // Clear error panels and any previous room conflict summary now that selection is saved
+                const schedulingErrors = document.getElementById('schedulingErrors');
+                const errorDetails = document.getElementById('errorDetails');
+                const manualWarnings = document.getElementById('manualWarnings');
+                const warningDetails = document.getElementById('warningDetails');
+                if (schedulingErrors) { schedulingErrors.style.display = 'none'; errorDetails.innerHTML = ''; }
+                if (manualWarnings) { manualWarnings.style.display = 'none'; warningDetails.innerHTML = ''; }
+                const existingRoomSummary = document.getElementById('roomConflictSummary');
+                if (existingRoomSummary) existingRoomSummary.remove();
                 
                 if (result.success) {
                     showAlert(`${result.selected_count} classes selected`, 'success');
@@ -1167,12 +1177,19 @@
             const conflictInfo = document.getElementById('conflictInfo');
             const generateWithP7Btn = document.getElementById('generateWithP7Btn');
             const exportBtn = document.getElementById('exportBtn');
+            const schedulingErrors = document.getElementById('schedulingErrors');
+            const errorDetails = document.getElementById('errorDetails');
+            const manualWarnings = document.getElementById('manualWarnings');
+            const warningDetails = document.getElementById('warningDetails');
             
             // Hide previous results
             scheduleDisplay.style.display = 'none';
             conflictInfo.style.display = 'none';
-            document.getElementById('schedulingErrors').style.display = 'none';
-            document.getElementById('manualWarnings').style.display = 'none';
+            // Clear any prior errors/warnings and conflict summary
+            if (schedulingErrors) { schedulingErrors.style.display = 'none'; errorDetails.innerHTML = ''; }
+            if (manualWarnings) { manualWarnings.style.display = 'none'; warningDetails.innerHTML = ''; }
+            const existingRoomSummary = document.getElementById('roomConflictSummary');
+            if (existingRoomSummary) existingRoomSummary.remove();
             generateWithP7Btn.style.display = 'none';
             exportBtn.style.display = 'none';
             
@@ -1214,28 +1231,18 @@
                     // Store class colors for use throughout the interface
                     classColors = result.class_colors || {};
                     displaySchedule(result.schedule, result.stats);
-                    
-                    // Check if this is a partial schedule with errors or warnings
-                    if (result.partial_schedule && (result.scheduling_errors || result.manual_assignment_warnings)) {
-                        displaySchedulingErrors(result.scheduling_errors || [], result.manual_assignment_warnings || []);
-                        
+                    // Always re-render errors/warnings so old ones are cleared
+                    const errs = result.scheduling_errors || [];
+                    const warns = result.manual_assignment_warnings || [];
+                    displaySchedulingErrors(errs, warns);
+                    if (result.partial_schedule && (errs.length > 0 || warns.length > 0)) {
                         let message = '';
                         let alertType = 'success';
-                        
-                        if (result.scheduling_errors && result.scheduling_errors.length > 0) {
-                            message = `${result.scheduling_errors.length} class(es) could not be scheduled`;
-                            alertType = 'error';
+                        if (errs.length > 0) { message = `${errs.length} class(es) could not be scheduled`; alertType = 'error'; }
+                        if (warns.length > 0) {
+                            if (message) { message += ` and ${warns.length} manual assignment(s) were ignored`; }
+                            else { message = `${warns.length} manual assignment(s) were ignored due to conflicts`; alertType = 'warning'; }
                         }
-                        
-                        if (result.manual_assignment_warnings && result.manual_assignment_warnings.length > 0) {
-                            if (message) {
-                                message += ` and ${result.manual_assignment_warnings.length} manual assignment(s) were ignored`;
-                            } else {
-                                message = `${result.manual_assignment_warnings.length} manual assignment(s) were ignored due to conflicts`;
-                                alertType = 'warning';
-                            }
-                        }
-                        
                         showAlert(`Partial schedule generated - ${message}`, alertType);
                     } else {
                         showAlert('Schedule generated successfully!', 'success');
@@ -1301,6 +1308,26 @@
             
             const periods = [1, 2, 3, 4, 5, 6, 7, 11, 8, 9, 10];  // Period 7b moved after Period 7
             const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+            // Build a room conflict map for quick lookups
+            const conflictMap = new Map();
+            days.forEach(d => {
+                if (!schedule[d]) return;
+                periods.forEach(p => {
+                    const key = `${d}-${p}`;
+                    const rc = new Map();
+                    const classes = schedule[d][p] || [];
+                    classes.forEach(ci => {
+                        const room = ci.room || 'TBD';
+                        if (room === 'Open' || room === 'TBD') return;
+                        const entry = rc.get(room) || { count: 0, classes: [] };
+                        entry.count += 1;
+                        entry.classes.push(ci.Class);
+                        rc.set(room, entry);
+                    });
+                    conflictMap.set(key, rc);
+                });
+            });
             
             periods.forEach(period => {
                 const row = document.createElement('div');
@@ -1387,12 +1414,21 @@
                             // Add visual indicator for all movable classes
                             const multiSessionIndicator = '<span style="float: right; font-size: 8px; opacity: 0.8;">📌</span>';
                             
+                            // Detect room conflict for this exact slot/room
+                            let hasRoomConflict = false;
+                            if (roomName && roomName !== 'Open' && roomName !== 'TBD') {
+                                const key = `${day}-${period}`;
+                                const roomCounts = conflictMap.get(key);
+                                const entry = roomCounts ? roomCounts.get(roomName) : null;
+                                hasRoomConflict = !!(entry && entry.count > 1);
+                            }
+
                             classBlock.innerHTML = `
                                 <div class="class-title" style="background-color: ${classColorData.header}; padding: 3px 6px; margin: -6px -6px 0 -6px; border-radius: 5px 5px 0 0; color: white;" title="${classInfo.Class}">
                                     ${classInfo.Class}${multiSessionIndicator}
                                 </div>
                                 <div class="class-body" style="background-color: ${classColorData.body}; padding: 3px 6px; margin: 0 -6px -6px -6px; border-radius: 0 0 5px 5px; font-size: 10px; line-height: 1.2; color: white;">
-                                    <div class="class-details" style="color: white;"><strong>${teacherName}</strong> • <span class="room-indicator">${roomNameAbbrev}</span> • ${classInfo.student_count || 0} students</div>
+                                    <div class="class-details" style="color: white;"><strong>${teacherName}</strong> • <span class="room-indicator${hasRoomConflict ? ' conflict' : ''}" title="${hasRoomConflict ? 'Room conflict in this slot' : ''}">${roomNameAbbrev}</span> • ${classInfo.student_count || 0} students</div>
                                 </div>
                             `;
                             cell.appendChild(classBlock);
@@ -1405,6 +1441,36 @@
                 scheduleRows.appendChild(row);
             });
             
+            // After rendering, show a concise room conflict summary
+            let totalRoomConflicts = 0;
+            const items = [];
+            for (const [key, rooms] of conflictMap.entries()) {
+                for (const [room, info] of rooms.entries()) {
+                    if (info.count > 1) {
+                        totalRoomConflicts++;
+                        const [d, p] = key.split('-');
+                        items.push({ day: d, period: parseInt(p, 10), room, classes: info.classes });
+                    }
+                }
+            }
+            if (totalRoomConflicts > 0) {
+                const summary = document.createElement('div');
+                summary.id = 'roomConflictSummary';
+                summary.style.marginTop = '10px';
+                summary.innerHTML = `
+                    <div class="stat-card" style="grid-column: 1 / -1; background: #fff3f3; border: 1px solid #ffcccc;">
+                        <div class="stat-number" style="color:#c0392b;">${totalRoomConflicts}</div>
+                        <div class="stat-label">Room Conflicts</div>
+                    </div>
+                    <div style="grid-column: 1 / -1; font-size: 12px; color: #333; padding: 8px 0;">
+                        ${items.map(ci => `
+                            <div>• ${ci.day} Period ${ci.period} — <strong>${ci.room}</strong> used by ${ci.classes.join(', ')}</div>
+                        `).join('')}
+                    </div>
+                `;
+                scheduleStats.parentNode.insertBefore(summary, scheduleStats.nextSibling);
+            }
+
             // Initialize drag and drop functionality after schedule is rendered
             initializeDragAndDrop();
         }
@@ -1588,7 +1654,10 @@
                     class_name: className,
                     session_index: sessionIndex,
                     new_day: newDay,
-                    new_period: parseInt(newPeriod)
+                    new_period: parseInt(newPeriod),
+                    // send the original location to let server precisely remove the correct session
+                    current_day: draggedElement.dataset.currentDay,
+                    current_period: parseInt(draggedElement.dataset.currentPeriod)
                 })
             })
             .then(response => response.json())
@@ -1603,11 +1672,19 @@
                         return;
                     }
                     
-                    // Update room indicator if there's a conflict
+                    // Update room indicator (preserved room is returned by backend)
                     const roomIndicator = draggedElement.querySelector('.room-indicator');
-                    if (roomIndicator && data.new_assignment && data.new_assignment.room_conflict) {
-                        roomIndicator.style.color = '#ff4444';
-                        roomIndicator.title = 'Room conflict - check Select Classes page';
+                    if (roomIndicator && data.new_assignment) {
+                        if (data.new_assignment.room) {
+                            roomIndicator.textContent = `Room: ${data.new_assignment.room}`;
+                        }
+                        if (data.new_assignment.room_conflict) {
+                            roomIndicator.style.color = '#ff4444';
+                            roomIndicator.title = 'Room conflict - check Select Classes page';
+                        } else {
+                            roomIndicator.style.color = '';
+                            roomIndicator.title = '';
+                        }
                     }
                     
                     // Move the element in the DOM
