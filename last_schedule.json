@@ -1,312 +1,387 @@
 {
   "selected_classes": [
-    "GEHU 102 History of Civilization II",
-    "EDPD 103 Classroom Management",
-    "BTCM 306 P Christian Biographies",
-    "BTCM 306 E Christian Biographies",
-    "BBTTS 204 E Cults and Churches",
-    "BBTTS 204 P Cults and Churches",
-    "BTBL 102 Greek Grammar II",
-    "BTBL 104 Hebrew Grammar II",
-    "BTBS 201 E Biblical Interpretation",
-    "BTBS 201 P Biblical Interpretation",
-    "BTCM 101 E Christian Life",
-    "BTCM 101 P Christian Life",
-    "BTCM 104 E Homiletics",
-    "BTCM 104 P Homiletics",
-    "BTCM 403 E Pastoral Counseling",
-    "BTCM 403 P Pastoral Counseling",
-    "BTOT 308 E Major Prophets",
-    "BTOT 308 P Major Prophets",
-    "Education Math exam 2020",
-    "GECO 102 Computers 2",
-    "GELA 203 B English as a Second Language 3",
-    "GELA 204 B English as a Second Language 4B",
-    "GEMA 211 Finite Mathematics"
+    "BBTTS 103 Doctrine 2",
+    "BBTTS 103 P DOCTRINE 2",
+    "BBTTS 203 P Contemporary Theology",
+    "BBTTS 203 Contemporary Theology",
+    "BBTTS 401 Preparation for Ordination",
+    "BTBS 104 POT SURVEY",
+    "BTBS 104 OT SURVEY",
+    "BTCM 105 Preaching 1",
+    "BTCM 202 Marriage and Family married",
+    "BTCM 304 Missions and Acts",
+    "BTCM 304 P Missions and Acts",
+    "BTOT 304 Daniel and Revelation",
+    "EDEP 105 Methods and Materials",
+    "EDEP 102 Lesson Planning",
+    "EDEP 205 teaching Elem reading",
+    "EDEP 208 Teaching Bible",
+    "EDEP 210 Teaching History and Geo",
+    "EDEP 404 Education Practicum",
+    "EDEP104 Test and Measurements",
+    "EDPD 403 Education Capstone and Portfolio",
+    "Educational Ethics",
+    "GECO 101 Computers 1",
+    "GEHU 101 History of Civilization 1",
+    "GEHU 105 Christian Psychology",
+    "GELA 203 A English as a Second Language 3A",
+    "GELA 204 A English as a Second Language 4A",
+    "GEMU 301 Theology of Christian Music",
+    "GESC 102 Creation Science"
   ],
   "session_assignments": {
-    "BBTTS 204 E Cults and Churches": [
-      {
-        "day": "Monday",
-        "period": 6,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Wednesday",
-        "period": 6,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Friday",
-        "period": 6,
-        "room": "Classroom 5"
-      }
-    ],
-    "BBTTS 204 P Cults and Churches": [
-      {
-        "day": "Monday",
-        "period": 2,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Wednesday",
-        "period": 2,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Friday",
-        "period": 2,
-        "room": "Classroom 5"
-      }
-    ],
-    "BTBL 102 Greek Grammar II": [
+    "BBTTS 103 Doctrine 2": [
       {
         "day": "Tuesday",
-        "period": 6,
-        "room": "Classroom 5"
+        "period": 5,
+        "room": "Chapel"
       },
       {
         "day": "Thursday",
-        "period": 6,
-        "room": "Classroom 5"
+        "period": 5,
+        "room": "Chapel"
       }
     ],
-    "BTBL 104 Hebrew Grammar II": [
+    "BBTTS 103 P DOCTRINE 2": [
       {
-        "day": "Tuesday",
-        "period": 4,
-        "room": "Classroom 2"
-      },
-      {
-        "day": "Thursday",
-        "period": 4,
-        "room": "Classroom 2"
-      }
-    ],
-    "BTBS 201 E Biblical Interpretation": [
-      {
-        "day": "Tuesday",
+        "day": "Monday",
         "period": 1,
-        "room": "Classroom 5"
+        "room": "Classroom 2"
       },
+      {
+        "day": "Wednesday",
+        "period": 1,
+        "room": "Classroom 2"
+      }
+    ],
+    "BBTTS 203 Contemporary Theology": [
       {
         "day": "Tuesday",
-        "period": 2,
-        "room": "Classroom 5"
+        "period": 5,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Thursday",
+        "period": 5,
+        "room": "Classroom 2"
       }
     ],
-    "BTBS 201 P Biblical Interpretation": [
+    "BBTTS 203 P Contemporary Theology": [
       {
-        "day": "Monday",
-        "period": 9,
+        "day": "Tuesday",
+        "period": 7,
         "room": "Classroom 4"
       },
       {
-        "day": "Monday",
-        "period": 10,
+        "day": "Thursday",
+        "period": 7,
         "room": "Classroom 4"
       }
     ],
-    "BTCM 101 E Christian Life": [
+    "BBTTS 401 Preparation for Ordination": [
+      {
+        "day": "Monday",
+        "period": 1,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Wednesday",
+        "period": 1,
+        "room": "Classroom 4"
+      }
+    ],
+    "BTBS 104 OT SURVEY": [
       {
         "day": "Monday",
         "period": 2,
         "room": "Chapel"
       },
       {
-        "day": "Friday",
-        "period": 2,
-        "room": "Chapel"
-      }
-    ],
-    "BTCM 101 P Christian Life": [
-      {
-        "day": "Monday",
-        "period": 4,
-        "room": "Classroom 4"
-      },
-      {
-        "day": "Friday",
-        "period": 4,
-        "room": "Classroom 4"
-      }
-    ],
-    "BTCM 104 E Homiletics": [
-      {
-        "day": "Tuesday",
-        "period": 9,
-        "room": "Classroom 4"
-      },
-      {
-        "day": "Tuesday",
-        "period": 10,
-        "room": "Classroom 4"
-      }
-    ],
-    "BTCM 104 P Homiletics": [
-      {
-        "day": "Thursday",
-        "period": 9,
-        "room": "Classroom 4"
-      },
-      {
-        "day": "Thursday",
-        "period": 10,
-        "room": "Classroom 4"
-      }
-    ],
-    "BTCM 306 E Christian Biographies": [
-      {
-        "day": "Monday",
-        "period": 1,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Thursday",
-        "period": 1,
-        "room": "Classroom 5"
-      }
-    ],
-    "BTCM 306 P Christian Biographies": [
-      {
-        "day": "Monday",
-        "period": 6,
-        "room": "Classroom 4"
-      },
-      {
-        "day": "Thursday",
-        "period": 6,
-        "room": "Classroom 4"
-      }
-    ],
-    "BTCM 403 E Pastoral Counseling": [
-      {
-        "day": "Monday",
-        "period": 4,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Wednesday",
-        "period": 4,
-        "room": "Classroom 5"
-      }
-    ],
-    "BTCM 403 P Pastoral Counseling": [
-      {
-        "day": "Tuesday",
-        "period": 4,
-        "room": "Classroom 5"
-      },
-      {
-        "day": "Thursday",
-        "period": 4,
-        "room": "Classroom 5"
-      }
-    ],
-    "BTOT 308 E Major Prophets": [
-      {
-        "day": "Monday",
-        "period": 9,
-        "room": "Classroom 2"
-      },
-      {
-        "day": "Monday",
-        "period": 10,
-        "room": "Classroom 2"
-      }
-    ],
-    "BTOT 308 P Major Prophets": [
-      {
-        "day": "Tuesday",
-        "period": 5,
-        "room": "Classroom 4"
-      },
-      {
-        "day": "Tuesday",
-        "period": 6,
-        "room": "Classroom 4"
-      }
-    ],
-    "EDPD 103 Classroom Management": [
-      {
-        "day": "Monday",
-        "period": 5,
-        "room": "Classroom 6"
-      },
-      {
-        "day": "Thursday",
-        "period": 5,
-        "room": "Classroom 6"
-      }
-    ],
-    "Education Math exam 2020": [
-      {
         "day": "Wednesday",
         "period": 2,
         "room": "Chapel"
       }
     ],
-    "GECO 102 Computers 2": [
+    "BTBS 104 POT SURVEY": [
+      {
+        "day": "Monday",
+        "period": 7,
+        "room": "Classroom 4"
+      },
       {
         "day": "Wednesday",
-        "period": 5,
-        "room": "Computer Lab"
+        "period": 7,
+        "room": "Classroom 4"
+      }
+    ],
+    "BTCM 105 Preaching 1": [
+      {
+        "day": "Monday",
+        "period": 2,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Wednesday",
+        "period": 2,
+        "room": "Classroom 2"
       },
       {
         "day": "Friday",
-        "period": 5,
-        "room": "Computer Lab"
+        "period": 2,
+        "room": "Classroom 2"
       }
     ],
-    "GEHU 102 History of Civilization II": [
+    "BTCM 202 Marriage and Family married": [
+      {
+        "day": "Tuesday",
+        "period": 1,
+        "room": "Classroom 4"
+      },
+      {
+        "day": "Thursday",
+        "period": 1,
+        "room": "Classroom 4"
+      }
+    ],
+    "BTCM 304 Missions and Acts": [
+      {
+        "day": "Tuesday",
+        "period": 6,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Thursday",
+        "period": 6,
+        "room": "Classroom 2"
+      }
+    ],
+    "BTCM 304 P Missions and Acts": [
       {
         "day": "Monday",
+        "period": 5,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Wednesday",
+        "period": 5,
+        "room": "Classroom 2"
+      }
+    ],
+    "BTOT 304 Daniel and Revelation": [
+      {
+        "day": "Monday",
+        "period": 9,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Tuesday",
+        "period": 1,
+        "room": "Classroom 2"
+      }
+    ],
+    "EDEP 102 Lesson Planning": [
+      {
+        "day": "Tuesday",
         "period": 4,
-        "room": "Classroom 6"
+        "room": "Chapel"
+      },
+      {
+        "day": "Thursday",
+        "period": 4,
+        "room": "Chapel"
+      }
+    ],
+    "EDEP 105 Methods and Materials": [
+      {
+        "day": "Monday",
+        "period": 7,
+        "room": "Classroom 2"
+      },
+      {
+        "day": "Wednesday",
+        "period": 7,
+        "room": "Classroom 2"
+      }
+    ],
+    "EDEP 205 teaching Elem reading": [
+      {
+        "day": "Tuesday",
+        "period": 2,
+        "room": "Classroom 2"
       },
       {
         "day": "Thursday",
         "period": 2,
-        "room": "Classroom 6"
+        "room": "Classroom 2"
       }
     ],
-    "GELA 203 B English as a Second Language 3": [
+    "EDEP 208 Teaching Bible": [
+      {
+        "day": "Tuesday",
+        "period": "Open",
+        "room": "Open"
+      },
+      {
+        "day": "Thursday",
+        "period": "Open",
+        "room": "Open"
+      }
+    ],
+    "EDEP 210 Teaching History and Geo": [
+      {
+        "day": "Monday",
+        "period": 6,
+        "room": "Classroom 2"
+      },
       {
         "day": "Wednesday",
-        "period": 7,
-        "room": "Computer Lab"
+        "period": 6,
+        "room": "Classroom 2"
+      }
+    ],
+    "EDEP 404 Education Practicum": [
+      {
+        "day": "Thursday",
+        "period": 1,
+        "room": "Classroom 2"
       },
       {
         "day": "Friday",
-        "period": 7,
-        "room": "Computer Lab"
+        "period": 4,
+        "room": "Classroom 2"
       }
     ],
-    "GELA 204 B English as a Second Language 4B": [
+    "EDEP104 Test and Measurements": [
       {
-        "day": "Monday",
+        "day": "Tuesday",
         "period": 7,
-        "room": "Computer Lab"
+        "room": "Classroom 2"
       },
       {
         "day": "Thursday",
         "period": 7,
+        "room": "Classroom 2"
+      }
+    ],
+    "EDPD 403 Education Capstone and Portfolio": [
+      {
+        "day": "Wednesday",
+        "period": 8,
+        "room": "Open"
+      },
+      {
+        "day": "Friday",
+        "period": 8,
+        "room": "Open"
+      }
+    ],
+    "Educational Ethics": [
+      {
+        "day": "Friday",
+        "period": 7,
+        "room": "Chapel"
+      }
+    ],
+    "GECO 101 Computers 1": [
+      {
+        "day": "Tuesday",
+        "period": 6,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Thursday",
+        "period": 6,
         "room": "Computer Lab"
       }
     ],
-    "GEMA 211 Finite Mathematics": [
+    "GEHU 101 History of Civilization 1": [
+      {
+        "day": "Monday",
+        "period": 1,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Wednesday",
+        "period": 1,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Friday",
+        "period": 1,
+        "room": "Classroom 6"
+      }
+    ],
+    "GEHU 105 Christian Psychology": [
+      {
+        "day": "Tuesday",
+        "period": 1,
+        "room": "Classroom 6"
+      },
+      {
+        "day": "Thursday",
+        "period": 1,
+        "room": "Classroom 6"
+      }
+    ],
+    "GELA 203 A English as a Second Language 3A": [
       {
         "day": "Monday",
         "period": 6,
-        "room": "Classroom 2"
+        "room": "Computer Lab"
       },
       {
         "day": "Wednesday",
         "period": 6,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Friday",
+        "period": 6,
+        "room": "Computer Lab"
+      }
+    ],
+    "GELA 204 A English as a Second Language 4A": [
+      {
+        "day": "Monday",
+        "period": 5,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Wednesday",
+        "period": 5,
+        "room": "Computer Lab"
+      },
+      {
+        "day": "Friday",
+        "period": 5,
+        "room": "Computer Lab"
+      }
+    ],
+    "GEMU 301 Theology of Christian Music": [
+      {
+        "day": "Monday",
+        "period": 4,
         "room": "Classroom 2"
+      },
+      {
+        "day": "Wednesday",
+        "period": 4,
+        "room": "Classroom 2"
+      }
+    ],
+    "GESC 102 Creation Science": [
+      {
+        "day": "Tuesday",
+        "period": 2,
+        "room": "Chapel"
+      },
+      {
+        "day": "Thursday",
+        "period": 2,
+        "room": "Chapel"
       }
     ]
   },
-  "timestamp": "2025-09-03T23:27:53.996858",
+  "timestamp": "2026-02-15T22:43:36.662024",
   "version": "1.1"
 }
