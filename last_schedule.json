@@ -241,11 +241,6 @@
     ],
     "EDEP 404 Education Practicum": [
       {
-        "day": "Thursday",
-        "period": 1,
-        "room": "Classroom 2"
-      },
-      {
         "day": "Friday",
         "period": 4,
         "room": "Classroom 2"
